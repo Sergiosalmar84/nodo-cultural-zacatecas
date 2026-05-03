@@ -232,11 +232,9 @@ select option{background:#fff;}
 .back-fixed{position:fixed;top:66px;left:14px;z-index:100;}
 .back-btn{display:flex;align-items:center;gap:5px;background:rgba(250,248,245,.94);border:1px solid var(--brd);border-radius:20px;padding:7px 14px;color:var(--txts);font-size:12px;backdrop-filter:blur(10px);cursor:pointer;transition:color .15s;box-shadow:var(--shadow);}
 .back-btn:hover{color:var(--amb);}
-.profile-cover{height:180px;position:relative;overflow:hidden;}
-.profile-cover-img{width:100%;height:100%;object-fit:cover;object-position:center;}
-.profile-cover-upload{position:absolute;bottom:8px;right:10px;background:rgba(26,21,16,.55);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:5px 10px;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px;backdrop-filter:blur(4px);transition:background .15s;font-family:'DM Sans',sans-serif;}
+
 .profile-cover-upload:hover{background:rgba(26,21,16,.78);}
-.profile-cover-upload-presets{position:absolute;bottom:36px;right:10px;background:rgba(250,248,245,.97);border:1px solid var(--brd);border-radius:12px;padding:10px;display:flex;gap:8px;flex-wrap:wrap;max-width:260px;box-shadow:var(--shadow-l);z-index:10;}
+
 .profile-hdr{max-width:940px;margin:0 auto;padding:0 22px;}
 .profile-id-row{display:flex;align-items:flex-end;gap:20px;margin-top:-50px;flex-wrap:wrap;padding-top:0;}
 .profile-name{font-family:'Playfair Display',serif;font-size:clamp(20px,4vw,32px);font-weight:700;color:var(--txt);line-height:1.1;}
@@ -711,54 +709,6 @@ const ArtCatSelector=({selected,onChange})=>{
   );
 };
 /* ── COVER UPLOAD + CATEGORY PRESETS ── */
-const COVER_PRESETS={
-  /* Cada categoría tiene un gradiente sugerido como portada */
-  actor:     ['linear-gradient(135deg,#2d0a0a,#8b2e18)','linear-gradient(135deg,#1a1a3a,#4a1a6b)','linear-gradient(135deg,#0a1a2a,#1f3d5e)'],
-  bailarin:  ['linear-gradient(135deg,#3a0a2a,#8a2a6e)','linear-gradient(135deg,#0a0a2a,#2a1a5e)','linear-gradient(135deg,#1a2a0a,#3a5e1a)'],
-  pintor:    ['linear-gradient(135deg,#3a1a0a,#c4611e)','linear-gradient(135deg,#0a1a3a,#1f6b8a)','linear-gradient(135deg,#2a0a0a,#8b1a1a)'],
-  muralista: ['linear-gradient(135deg,#1a1000,#a07c28)','linear-gradient(135deg,#0a2010,#2a6e38)','linear-gradient(135deg,#3a0a10,#8b2e18)'],
-  musico:    ['linear-gradient(135deg,#0a0a1a,#1a1a4a)','linear-gradient(135deg,#1a0a0a,#4a1a1a)','linear-gradient(135deg,#001a1a,#0a4a4a)'],
-  cantante:  ['linear-gradient(135deg,#1a001a,#5e1a5e)','linear-gradient(135deg,#001a00,#1a4a1a)','linear-gradient(135deg,#1a1a00,#4a4a1a)'],
-  fotografo: ['linear-gradient(135deg,#0a0a0a,#3a3a3a)','linear-gradient(135deg,#1a0a00,#5e3a00)','linear-gradient(135deg,#000a1a,#001a4a)'],
-  espacio:   ['linear-gradient(135deg,#0a1a1a,#1a4a4a)','linear-gradient(135deg,#1a0a1a,#3a1a3a)','linear-gradient(135deg,#1a1a0a,#3a3a0a)'],
-  galeria:   ['linear-gradient(135deg,#f5f0e8,#e8d8c0)','linear-gradient(135deg,#e8e8e8,#c8c8c8)','linear-gradient(135deg,#f0e8d8,#d8c8a8)'],
-  colectivo: ['linear-gradient(135deg,#0a2a0a,#1a5e1a)','linear-gradient(135deg,#2a0a0a,#5e1a1a)','linear-gradient(135deg,#0a0a2a,#1a1a5e)'],
-  default:   ['linear-gradient(135deg,#1a1208,#3a2a10)','linear-gradient(135deg,#0a1a2a,#1a3a4a)','linear-gradient(135deg,#1a0a1a,#3a1a3a)'],
-};
-const getPresets=cat=>COVER_PRESETS[cat]||COVER_PRESETS.default;
-
-const CoverUpload=({p,onUpdateProfile})=>{
-  const [showPresets,setShowPresets]=useState(false);
-  const fileRef=useRef();
-  const presets=getPresets(p.cat);
-  const handleFile=e=>{
-    const f=e.target.files&&e.target.files[0];
-    if(!f)return;
-    if(f.size>1.5*1024*1024){alert('La portada debe pesar menos de 1.5 MB. Sugerencia: usa una imagen de 1200×400 px.');return;}
-    const r=new FileReader();
-    r.onload=async ev=>{
-      const url=await uploadPhoto(ev.target.result,'covers/'+p.id+'_'+Date.now());
-      onUpdateProfile({...p,coverPhoto:url});
-    };
-    r.readAsDataURL(f);
-    setShowPresets(false);
-  };
-  return React.createElement(React.Fragment,null,
-    /* Upload / change button */
-    React.createElement('label',{className:'profile-cover-upload',htmlFor:'cover-upload-input',onClick:()=>setShowPresets(!showPresets)},
-      React.createElement(Ic,{n:'camera',size:12,color:'#fff'}),showPresets?'Cerrar':'Cambiar portada'
-    ),
-    React.createElement('input',{id:'cover-upload-input',type:'file',accept:'image/*',style:{display:'none'},ref:fileRef,onChange:handleFile}),
-    /* Presets panel */
-    showPresets&&React.createElement('div',{className:'profile-cover-upload-presets'},
-      React.createElement('div',{style:{width:'100%',fontSize:10,color:'var(--txtm)',fontFamily:'DM Mono,monospace',letterSpacing:1,marginBottom:6}},'FONDOS SUGERIDOS'),
-      presets.map((grad,i)=>React.createElement('button',{key:i,onClick:()=>{onUpdateProfile({...p,coverPhoto:null,coverGradient:grad});setShowPresets(false);},style:{width:70,height:36,borderRadius:7,border:'2px solid var(--brd)',background:grad,cursor:'pointer',transition:'border-color .15s'},title:'Aplicar este fondo',onMouseOver:e=>e.currentTarget.style.borderColor='var(--amb)',onMouseOut:e=>e.currentTarget.style.borderColor='var(--brd)'})),
-      React.createElement('button',{onClick:()=>fileRef.current&&fileRef.current.click(),style:{width:'100%',padding:'6px 10px',background:'var(--bg2)',border:'1px solid var(--brd)',borderRadius:7,color:'var(--txts)',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5,marginTop:4}},React.createElement(Ic,{n:'image',size:12}),'Subir foto (máx. 1.5 MB)'),
-      p.coverPhoto&&React.createElement('button',{onClick:()=>{onUpdateProfile({...p,coverPhoto:null,coverGradient:null});setShowPresets(false);},style:{width:'100%',padding:'5px 10px',background:'none',border:'1px solid rgba(192,57,43,.25)',borderRadius:7,color:'#c0392b',fontSize:11,cursor:'pointer',marginTop:4}},'Eliminar portada')
-    )
-  );
-};
-
 /* ── PROYECTO CARD (crowdfunding) ── */
 const ProyectoCard=({proy,i,isOwn,p,onUpdateProfile})=>{
   const [editing,setEditing]=useState(false);
@@ -1215,7 +1165,7 @@ const Navbar=({view,go,currentUser,onLogout,onAuthClick,notifs,setNotifs,onRetur
     React.createElement('button',{className:'logo',onClick:()=>go('home')},React.createElement('div',{className:'logo-icon'},React.createElement('div',{className:'logo-dot'})),React.createElement('div',null,React.createElement('div',{className:'logo-word'},'NODO'),React.createElement('div',{className:'logo-sub'},'ZACATECAS'))),
     React.createElement('div',{className:'nav-links'},nav.map(n=>React.createElement('button',{key:n.v,className:'nav-btn'+(view===n.v?' active':''),onClick:()=>go(n.v)},React.createElement(Ic,{n:n.n,size:15}),n.l))),
     React.createElement('div',{className:'nav-right'},
-      React.createElement('button',{className:'btn-home-return',onClick:onReturnHome},React.createElement(Ic,{n:'arrow_l',size:13}),'Inicio'),
+      (!currentUser||currentUser.role==='visitor')&&React.createElement('button',{className:'btn-home-return',onClick:onReturnHome},React.createElement(Ic,{n:'arrow_l',size:13}),'Inicio'),
       React.createElement('div',{ref:notifRef,style:{position:'relative'}},
         React.createElement('button',{className:'icon-btn',onClick:()=>{setShowNotifs(!showNotifs);setShowDrop(false);}},React.createElement(Ic,{n:'bell',size:17}),unread>0&&React.createElement('span',{className:'notif-dot-pulse'})),
         showNotifs&&React.createElement('div',{className:'notif-drop'},
@@ -1246,8 +1196,8 @@ const Navbar=({view,go,currentUser,onLogout,onAuthClick,notifs,setNotifs,onRetur
     )
   );
 };
-const BottomNav=({view,go,onReturnHome})=>{
-  const tabs=[{v:'home',n:'home',l:'Inicio'},{v:'map',n:'pin',l:'Mapa'},{v:'dir',n:'users',l:'Dir.'},{v:'chat',n:'msg',l:'Chat'},{v:'back',n:'arrow_l',l:'Menú'}];
+const BottomNav=({view,go,onReturnHome,currentUser})=>{
+  const tabs=[{v:'map',n:'pin',l:'Mapa'},{v:'dir',n:'users',l:'Dir.'},{v:'chat',n:'msg',l:'Chat'},{v:'home',n:'home',l:'Inicio',visitorOnly:true},{v:'back',n:'arrow_l',l:'Menú',loggedOnly:true}].filter(t=>currentUser&&currentUser.role!=='visitor'?!t.visitorOnly:!t.loggedOnly);
   return React.createElement('div',{className:'bottom-nav'},tabs.map(t=>React.createElement('button',{key:t.v,className:'bnav-btn'+(view===t.v?' active':''),onClick:()=>t.v==='back'?onReturnHome():go(t.v)},React.createElement(Ic,{n:t.n,size:21}),t.l)));
 };
 const VisitorBanner=({onAuthClick})=>React.createElement('div',{className:'visitor-banner'},
@@ -1414,14 +1364,16 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
       )
     ),
     React.createElement('div',{className:'back-fixed'},React.createElement('button',{className:'back-btn',onClick:()=>go('dir')},React.createElement(Ic,{n:'arrow_l',size:13}),'Directorio')),
-    React.createElement('div',{className:'profile-cover'},
-      p.coverPhoto
-        ?React.createElement('img',{src:p.coverPhoto,className:'profile-cover-img'})
-        :React.createElement('div',{style:{position:'absolute',inset:0,background:p.coverGradient||('linear-gradient(135deg,'+catInfo(p.cat).color+'22,var(--bg2))')}},
-            React.createElement('div',{style:{position:'absolute',inset:0,backgroundImage:"url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23c4611e' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E\")",backgroundSize:'60px 60px'}})
-          ),
-      isOwn&&React.createElement(CoverUpload,{p,onUpdateProfile})
-    ),
+    React.createElement('div',{style:{
+      height:120,position:'relative',overflow:'hidden',
+      background:'linear-gradient(135deg,'+catInfo(p.cat).color+'cc,'+catInfo(p.cat).color+'44)',
+      borderBottom:'1px solid '+catInfo(p.cat).color+'33'
+    }},
+      React.createElement('div',{style:{position:'absolute',inset:0,backgroundImage:"url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='rgba(255,255,255,0.08)'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E\")",backgroundSize:'40px 40px'}}),
+      p.verified&&React.createElement('div',{style:{position:'absolute',top:12,right:14,display:'flex',alignItems:'center',gap:5,background:'rgba(255,255,255,.2)',backdropFilter:'blur(8px)',borderRadius:20,padding:'4px 10px',border:'1px solid rgba(255,255,255,.3)'}},
+        React.createElement(Ic,{n:'check',size:11,color:'#fff'}),
+        React.createElement('span',{style:{fontSize:10,color:'#fff',fontWeight:600}}),'Verificado')
+    ),,
     React.createElement('div',{className:'profile-hdr'},
       React.createElement('div',{className:'profile-id-row'},
         React.createElement('div',{style:{width:82,height:82,borderRadius:20,flexShrink:0,background:c.color+'25',border:'3px solid '+c.color+'50',color:c.color,fontSize:30,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Playfair Display,serif',fontWeight:700,overflow:'hidden',cursor:isOwn?'pointer':'default'},onClick:isOwn?()=>setShowEdit(true):undefined},p.photo?React.createElement('img',{src:p.photo,style:{width:'100%',height:'100%',objectFit:'cover'}}):initials(p.name)),
@@ -1443,7 +1395,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
         React.createElement(StatPill,{icon:'eye',val:(p.views||0).toLocaleString(),label:'vistas'}),
         (p.founded||p.born)&&React.createElement(StatPill,{icon:'calendar',val:'Desde '+(p.founded||p.born),label:''})
       ),
-      React.createElement('div',{className:'profile-tabs'},[['about','Sobre'],['portfolio','Portfolio'],['convocatorias','Convocatorias'],['antorcha','🔥 Antorcha'],['connections','Conexiones']].map(([t,l])=>React.createElement('button',{key:t,className:'tab-btn'+(tab===t?' active':''),onClick:()=>setTab(t)},l))),
+      React.createElement('div',{className:'profile-tabs'},[['about','Sobre'],['portfolio','Portfolio'],['convocatorias','Convocatorias'],...(['casa','espacio','galeria'].includes(p.cat)?[]:[['antorcha','🔥 Antorcha']]),['connections','Conexiones']].map(([t,l])=>React.createElement('button',{key:t,className:'tab-btn'+(tab===t?' active':''),onClick:()=>setTab(t)},l))),
       React.createElement('div',{className:'profile-grid'},
         React.createElement('div',null,
           tab==='about'&&React.createElement('div',null,
@@ -1652,8 +1604,11 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
   );
 };
 /* ── CHAT PAGE ── */
-const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith})=>{
+const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,go})=>{
+  const myProfile=profiles&&profiles.find(pr=>pr.userId===currentUser?.id);
+  const isPending=myProfile&&myProfile.status==='pending';
   if(!currentUser||currentUser.role==='visitor')return React.createElement('div',{className:'view'},React.createElement('div',{style:{padding:'80px 20px'}},React.createElement('div',{className:'access-denied'},React.createElement(Ic,{n:'msg',size:44,color:'var(--brd)'}),React.createElement('h2',null,'Chat solo para miembros'),React.createElement('p',null,'Regístrate para chatear con artistas, gestores y agentes de la red.'),React.createElement('button',{onClick:()=>onAuthClick('register'),style:{padding:'11px 24px',background:'linear-gradient(135deg,#c4611e,#8b2e18)',border:'none',borderRadius:10,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}},'Crear cuenta gratis'))));
+  if(isPending)return React.createElement('div',{className:'view'},React.createElement('div',{style:{padding:'60px 20px'}},React.createElement('div',{className:'access-denied'},React.createElement('div',{style:{fontSize:40,marginBottom:10}},'⏳'),React.createElement('h2',null,'Perfil pendiente de aprobación'),React.createElement('p',null,'Tu perfil ya es visible en el directorio, pero el chat se habilitará una vez que el administrador apruebe tu cuenta. Normalmente toma menos de 24 horas.'),React.createElement('button',{onClick:()=>go('profile'),style:{padding:'10px 22px',background:'linear-gradient(135deg,#c4611e,#8b2e18)',border:'none',borderRadius:9,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}},'Ver mi perfil'))));
   const [convs,setConvs]=useState([]);
   const [activeConv,setActiveConv]=useState(null);
   const [msgs,setMsgs]=useState([]);
@@ -1770,7 +1725,7 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith})
 };
 
 /* ── ADMIN PAGE ── */
-const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onSendAnnouncement})=>{
+const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onSendAnnouncement,showToast})=>{
   const [adminTab,setAdminTab]=useState('dashboard');
   const [emailSubject,setEmailSubject]=useState('');const [emailBody,setEmailBody]=useState('');const [emailType,setEmailType]=useState('convocatoria');const [recipients,setRecipients]=useState([]);const [recInput,setRecInput]=useState('');const [sendAll,setSendAll]=useState(false);const [sending,setSending]=useState(false);
   const [filterCat,setFilterCat]=useState('all');const [filterMuni,setFilterMuni]=useState('all');
@@ -1842,165 +1797,46 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
         ),
         React.createElement('button',{onClick:sendEmail,disabled:!emailSubject.trim()||!emailBody.trim()||(!sendAll&&recipients.length===0)||sending,className:'btn-primary',style:{opacity:(!emailSubject.trim()||!emailBody.trim()||(!sendAll&&recipients.length===0)||sending)?.5:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8}},sending?React.createElement(React.Fragment,null,React.createElement('span',{className:'spin'}),' Enviando...'):React.createElement(React.Fragment,null,React.createElement(Ic,{n:'send',size:15,color:'#fff'}),' Enviar correo'))
       ),
-      adminTab==='profiles'&&React.createElement('div',{className:'table-card'},
-        React.createElement('h3',null,'Gestión de perfiles'),
-        profiles.length===0?React.createElement('div',{className:'empty-state'},React.createElement(Ic,{n:'users',size:36,color:'var(--brd)'}),React.createElement('h3',null,'Sin perfiles aún'),React.createElement('p',null,'Los perfiles registrados aparecerán aquí.')):
-        React.createElement('table',null,
-          React.createElement('thead',null,React.createElement('tr',null,['Perfil','Tipo','Municipio','CP','Estado','Acciones'].map(h=>React.createElement('th',{key:h},h)))),
-          React.createElement('tbody',null,profiles.map(p=>React.createElement('tr',{key:p.id},
-            React.createElement('td',null,React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,cursor:'pointer'},onClick:()=>{setProf(p);go('profile');}},React.createElement(Av,{p,size:28}),React.createElement('span',{style:{color:'var(--txt)',fontWeight:500}},p.name.length>24?p.name.slice(0,24)+'…':p.name))),
-            React.createElement('td',null,React.createElement(Badge,{cat:p.cat,sm:true})),
-            React.createElement('td',{style:{color:'var(--txts)',fontSize:11}},muniName(p.muni)),
-            React.createElement('td',{style:{color:'var(--txtm)',fontFamily:'DM Mono,monospace',fontSize:10}},p.cp||'—'),
-            React.createElement('td',null,React.createElement('span',{style:{fontSize:10,color:p.verified?'#1f6b5e':'#9b8e7e',background:p.verified?'rgba(31,107,94,.12)':'var(--bg2)',borderRadius:5,padding:'2px 8px'}},p.verified?'Verificado':'Pendiente')),
-            React.createElement('td',null,React.createElement('div',{style:{display:'flex',gap:6}},React.createElement('button',{onClick:()=>onVerify(p.id),style:{padding:'4px 9px',borderRadius:6,border:'none',background:'rgba(31,107,94,.12)',color:'#1f6b5e',fontSize:11,cursor:'pointer'}},p.verified?'✓ Ver.':'Verificar'),React.createElement('button',{onClick:()=>{if(window.confirm('¿Eliminar "'+p.name+'"?'))onDelete(p.id);},style:{padding:'4px 9px',borderRadius:6,border:'none',background:'rgba(192,57,43,.1)',color:'#c0392b',fontSize:11,cursor:'pointer'}},'Eliminar')))
-          )))
-        )
-      ),
-      adminTab==='config'&&React.createElement('div',{className:'email-composer'},
-        React.createElement('h3',null,React.createElement(Ic,{n:'key',size:18,color:'#a07c28'}),' Configuración del sistema'),
-        React.createElement('div',{style:{background:'rgba(31,107,94,.06)',border:'1px solid rgba(31,107,94,.2)',borderRadius:12,padding:'16px',marginBottom:18}},
-          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:9,marginBottom:8}},React.createElement(Ic,{n:'check',size:16,color:'#1f6b5e'}),React.createElement('strong',{style:{color:'#1f6b5e',fontSize:13}},'Mapa activo — OpenStreetMap (gratuito)')),
-          React.createElement('p',{style:{fontSize:13,color:'var(--txts)',lineHeight:1.65}},'El mapa usa ',React.createElement('strong',null,'Leaflet.js + OpenStreetMap + CartoDB'),' — completamente gratuito, sin API key, sin tarjeta de crédito. Los datos de calles y colonias son actualizados por la comunidad global de OpenStreetMap.')
+      adminTab==='profiles'&&React.createElement('div',null,
+        /* Pending approval banner */
+        profiles.filter(p=>p.status==='pending'&&!p.isDemo).length>0&&React.createElement('div',{style:{background:'rgba(160,100,20,.08)',border:'1px solid rgba(160,100,20,.25)',borderRadius:12,padding:'12px 18px',marginBottom:18,display:'flex',alignItems:'center',gap:10}},
+          React.createElement('div',{style:{fontSize:20}},'🔔'),
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontWeight:600,color:'#a07c28',fontSize:13}},profiles.filter(p=>p.status==='pending'&&!p.isDemo).length+' perfil(es) esperando aprobación'),
+            React.createElement('div',{style:{fontSize:12,color:'var(--txts)'}}),'Pueden ver el directorio y publicar, pero no pueden chatear ni crear proyectos hasta tu aprobación.'
+          )
         ),
-        React.createElement('div',{style:{background:'var(--bg)',border:'1px solid var(--brd)',borderRadius:10,padding:'14px 16px'}},
-          React.createElement('div',{style:{fontSize:12,color:'var(--txts)',lineHeight:1.8}},
-            React.createElement('strong',null,'Datos del mapa: '),React.createElement('a',{href:'https://www.openstreetmap.org',target:'_blank',rel:'noopener noreferrer',style:{color:'var(--amb)'}},'openstreetmap.org'),React.createElement('br',null),
-            React.createElement('strong',null,'Estilos: '),React.createElement('a',{href:'https://carto.com',target:'_blank',rel:'noopener noreferrer',style:{color:'var(--amb)'}},'CARTO Voyager'),React.createElement('br',null),
-            React.createElement('strong',null,'Librería: '),React.createElement('a',{href:'https://leafletjs.com',target:'_blank',rel:'noopener noreferrer',style:{color:'var(--amb)'}},'Leaflet.js v1.9.4')
+        React.createElement('div',{className:'table-card'},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}},
+            React.createElement('h3',{style:{margin:0}},'Gestión de perfiles'),
+            React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},profiles.length+' perfiles totales')
+          ),
+          profiles.length===0?React.createElement('div',{className:'empty-state'},React.createElement(Ic,{n:'users',size:36,color:'var(--brd)'}),React.createElement('h3',null,'Sin perfiles aún')):
+          React.createElement('table',null,
+            React.createElement('thead',null,React.createElement('tr',null,['Perfil','Tipo','Municipio','Estado','Aprobación','Acciones Admin'].map(h=>React.createElement('th',{key:h},h)))),
+            React.createElement('tbody',null,profiles.map(p=>React.createElement('tr',{key:p.id},
+              React.createElement('td',null,React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,cursor:'pointer'},onClick:()=>{setProf(p);go('profile');}},React.createElement(Av,{p,size:28}),React.createElement('div',null,React.createElement('div',{style:{color:'var(--txt)',fontWeight:500,fontSize:12}},p.name.length>22?p.name.slice(0,22)+'…':p.name),p.blocked&&React.createElement('span',{style:{fontSize:9,color:'#c0392b',background:'rgba(192,57,43,.1)',borderRadius:3,padding:'1px 5px'}},'BLOQUEADO')))),
+              React.createElement('td',null,React.createElement(Badge,{cat:p.cat,sm:true})),
+              React.createElement('td',{style:{color:'var(--txts)',fontSize:11}},muniName(p.muni)),
+              React.createElement('td',null,React.createElement('span',{style:{fontSize:10,color:p.verified?'#1f6b5e':'#9b8e7e',background:p.verified?'rgba(31,107,94,.12)':'var(--bg2)',borderRadius:5,padding:'2px 8px'}},p.verified?'Verificado':'Pendiente')),
+              React.createElement('td',null,
+                p.isDemo
+                  ?React.createElement('span',{style:{fontSize:10,color:'#a07c28'}}),'Demo'
+                  :React.createElement('span',{style:{fontSize:10,fontWeight:600,color:p.status==='approved'?'#1f6b5e':p.status==='blocked'?'#c0392b':'#a07c28',background:p.status==='approved'?'rgba(31,107,94,.1)':p.status==='blocked'?'rgba(192,57,43,.1)':'rgba(160,124,40,.1)',borderRadius:5,padding:'2px 8px'}},p.status==='approved'?'✓ Aprobado':p.status==='blocked'?'✗ Bloqueado':'⏳ Pendiente')
+              ),
+              React.createElement('td',null,
+                React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
+                  /* Approve */
+                  p.status!=='approved'&&!p.isDemo&&React.createElement('button',{onClick:()=>{const np=profiles.map(x=>x.id===p.id?{...x,status:'approved',approvedAt:fmtDate()}:x);setProfiles(np);showToast&&showToast('✓ Perfil aprobado: '+p.name);},style:{padding:'4px 9px',borderRadius:6,border:'none',background:'rgba(31,107,94,.12)',color:'#1f6b5e',fontSize:11,cursor:'pointer'}},'✓ Aprobar'),
+                  /* Block/Unblock */
+                  React.createElement('button',{onClick:()=>{const np=profiles.map(x=>x.id===p.id?{...x,blocked:!x.blocked,status:x.blocked?'pending':'blocked'}:x);setProfiles(np);},style:{padding:'4px 9px',borderRadius:6,border:'none',background:p.blocked?'rgba(31,107,94,.12)':'rgba(192,57,43,.08)',color:p.blocked?'#1f6b5e':'#c0392b',fontSize:11,cursor:'pointer'}},p.blocked?'Desbloquear':'Bloquear'),
+                  /* Verify toggle */
+                  React.createElement('button',{onClick:()=>onVerify(p.id),style:{padding:'4px 9px',borderRadius:6,border:'none',background:'rgba(94,61,138,.1)',color:'#5e3d8a',fontSize:11,cursor:'pointer'}},p.verified?'Desverificar':'Verificar'),
+                  /* Delete */
+                  React.createElement('button',{onClick:()=>{if(window.confirm('¿Eliminar permanentemente "'+p.name+'"? Esta acción no se puede deshacer.'))onDelete(p.id);},style:{padding:'4px 9px',borderRadius:6,border:'none',background:'rgba(192,57,43,.1)',color:'#c0392b',fontSize:11,cursor:'pointer'}},'Eliminar')
+                )
+              )
+            )))
           )
         )
       )
-    )
-  );
-};
-/* ── ROOT APP with window.storage persistence ── */
-function App(){
-  const [loaded,setLoaded]=useState(false);
-  const [landing,setLanding]=useState(true);
-  const [view,setView]=useState('home');
-  const [profiles,setProfiles]=useState([]);
-  const [posts,setPosts]=useState([]);
-  const [users,setUsers]=useState([]);
-  const [currentUser,setCurrentUser]=useState(null);
-  const [selProf,setSelProf]=useState(null);
-  const [toast,setToast]=useState(null);
-  const [notifs,setNotifs]=useState([]);
-  const [showAuth,setShowAuth]=useState(false);
-  const [authMode,setAuthMode]=useState('login');
-  const [openChatWith,setOpenChatWith]=useState(null);
-  const [announcement,setAnnouncement]=useState(null);
-
-  /* ── Load from storage on mount ── */
-  useEffect(()=>{
-    (async()=>{
-      try{
-        const [profilesData,usersData,postsData,sessionData,seededData]=await Promise.allSettled([
-          DB.get('profiles',true),DB.get('users',true),DB.get('posts',true),DB.get('session'),DB.get('nodo_seeded',true),
-        ]);
-        const existingProfiles=profilesData.status==='fulfilled'&&profilesData.value;
-        const existingPosts=postsData.status==='fulfilled'&&postsData.value;
-        const alreadySeeded=seededData.status==='fulfilled'&&seededData.value;
-        /* Seed demo data only on first ever load */
-        if(!alreadySeeded){
-          const seedProfiles=existingProfiles&&existingProfiles.length>0?existingProfiles:[...DEMO_PROFILES];
-          const seedPosts=existingPosts&&existingPosts.length>0?existingPosts:[...DEMO_POSTS];
-          setProfiles(seedProfiles);
-          setPosts(seedPosts);
-          await DB.set('profiles',seedProfiles,true);
-          await DB.set('posts',seedPosts,true);
-          await DB.set('nodo_seeded',true,true);
-        }else{
-          if(existingProfiles)setProfiles(existingProfiles);
-          if(existingPosts)setPosts(existingPosts);
-        }
-        if(usersData.status==='fulfilled'&&usersData.value)setUsers(usersData.value);
-        if(sessionData.status==='fulfilled'&&sessionData.value){
-          const sess=sessionData.value;setCurrentUser(sess);
-          try{const n=await DB.get('notifs:'+sess.id);setNotifs(n||[]);}catch{}
-          setLanding(false);
-        }
-      }catch(e){console.warn('Storage load error',e);}
-      setLoaded(true);
-    })();
-  },[]);
-
-  /* Auto-save on change */
-  useEffect(()=>{if(loaded)DB.set('profiles',profiles,true);},[profiles,loaded]);
-  useEffect(()=>{if(loaded)DB.set('posts',posts,true);},[posts,loaded]);
-  useEffect(()=>{if(loaded&&users.length>0)DB.set('users',users,true);},[users,loaded]);
-
-  const go=v=>{setView(v);try{window.scrollTo({top:0,behavior:'smooth'});}catch{}};
-  const showToast=msg=>setToast(msg);
-
-  /* Personalized notifications per user role */
-  const addNotifForAll=async({text,type,cat})=>{
-    const allUsers=await DB.get('users',true)||[];
-    for(const u of allUsers){
-      const interests=NOTIF_INTEREST[u.cat]||NOTIF_INTEREST['artista'];
-      const relevant=interests.includes('all')||interests.includes(type)||interests.includes(cat);
-      if(!relevant)continue;
-      try{
-        const existing=await DB.get('notifs:'+u.id)||[];
-        const newN={id:'n'+Date.now()+'_'+u.id,text,time:'ahora',unread:true,type};
-        await DB.set('notifs:'+u.id,[newN,...existing].slice(0,50));
-        if(currentUser&&currentUser.id===u.id)setNotifs(prev=>[newN,...prev].slice(0,50));
-      }catch{}
-    }
-    if(currentUser?.role==='admin')setNotifs(prev=>[{id:'n'+Date.now(),text,time:'ahora',unread:true,type},...prev].slice(0,50));
-  };
-
-  const addProfile=async(p)=>{
-    const newProfiles=[p,...profiles];setProfiles(newProfiles);
-    await addNotifForAll({text:'Nuevo perfil en la red: '+p.name+' ('+catInfo(p.cat).label+')',type:p.cat,cat:p.cat});
-    const newPost={id:'post'+Date.now(),pid:p.id,text:'¡Hola! Me acabo de unir a NODO. Soy '+p.name+', '+catInfo(p.cat).label.toLowerCase()+' en '+muniName(p.muni)+'.',likes:0,comments:0,shares:0,time:'ahora',type:'work'};
-    setPosts(prev=>[newPost,...prev].slice(0,100));
-  };
-
-  const updateProfile=async(u)=>{
-    setProfiles(prev=>prev.map(p=>p.id===u.id?u:p));
-    if(selProf&&selProf.id===u.id)setSelProf(u);
-  };
-
-  const onLogin=u=>{setCurrentUser(u);DB.get('notifs:'+u.id).then(n=>setNotifs(n||[])).catch(()=>{});};
-  const onLogout=async()=>{await DB.del('session');setCurrentUser(null);setNotifs([]);showToast('Sesión cerrada');};
-  const onAuthClick=mode=>{setAuthMode(mode);setShowAuth(true);};
-  const returnHome=()=>setLanding(true);
-  const handleLanding=role=>{
-    setLanding(false);
-    if(role==='admin')onAuthClick('login');
-    else if(role==='usuario')onAuthClick('register');
-    else setCurrentUser({id:'visitor_'+Date.now(),name:'Visitante',role:'visitor',photo:null,cat:'visitor'});
-  };
-
-  if(!loaded)return React.createElement('div',{style:{position:'fixed',inset:0,background:'#faf8f5',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}},
-    React.createElement('div',{style:{width:44,height:44,borderRadius:12,background:'linear-gradient(135deg,#c4611e,#8b2e18)',display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement('div',{style:{width:12,height:12,borderRadius:'50%',background:'#fff'}})),
-    React.createElement('div',{className:'spin',style:{width:28,height:28}}),
-    React.createElement('p',{style:{fontSize:13,color:'#9b8e7e',fontFamily:'DM Mono,monospace',letterSpacing:2}},'CARGANDO NODO...')
-  );
-
-  return React.createElement(React.Fragment,null,
-    landing&&React.createElement(Landing,{onSelect:handleLanding}),
-    !landing&&React.createElement(React.Fragment,null,
-      React.createElement(Navbar,{view,go,currentUser,onLogout,onAuthClick,notifs,setNotifs:async(upd)=>{setNotifs(upd);if(currentUser)await DB.set('notifs:'+currentUser.id,upd);},onReturnHome:returnHome,hasProfile:currentUser&&profiles.some(pr=>pr.userId===currentUser.id),onGoToProfile:()=>{const mp=profiles.find(pr=>pr.userId===currentUser.id);if(mp){setSelProf(mp);go('profile');}}}),
-      view==='home'&&React.createElement(HomePage,{profiles,posts,go,setProf:setSelProf,currentUser,onAuthClick}),
-      view==='map'&&React.createElement(MapPage,{profiles,go,setProf:setSelProf}),
-      view==='dir'&&React.createElement(DirPage,{profiles,go,setProf:setSelProf}),
-      view==='profile'&&selProf&&React.createElement(ProfilePage,{p:selProf,go,profiles,currentUser,onUpdateProfile:updateProfile,onAuthClick,addNotifForAll,setProf:setSelProf,onStartChat:(id)=>{setOpenChatWith(id);}}),
-      view==='create'&&React.createElement(CreatePage,{go,onAdd:addProfile,showToast,currentUser,onAuthClick,profiles}),
-      view==='chat'&&React.createElement(ChatPage,{profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith}),
-      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,onSendAnnouncement:ann=>setAnnouncement(ann),
-        onVerify:id=>setProfiles(prev=>prev.map(p=>p.id===id?{...p,verified:!p.verified}:p)),
-        onDelete:id=>setProfiles(prev=>prev.filter(p=>p.id!==id))}),
-      React.createElement(BottomNav,{view,go,onReturnHome:returnHome}),
-      showAuth&&React.createElement(AuthModal,{mode:authMode,onClose:()=>setShowAuth(false),onLogin,users,setUsers,showToast,onAfterRegister:(u)=>{if(authMode==='register'){go('create');}}}),
-      announcement&&currentUser&&currentUser.role!=='admin'&&React.createElement(AdminAnnouncement,{announcement,onDismiss:()=>setAnnouncement(null)}),
-      toast&&React.createElement(Toast,{msg:toast,onClose:()=>setToast(null)})
-    )
-  );
-}
-
-ReactDOM.createRoot(document.getElementById('app')).render(React.createElement(App));
-</script>
-</body>
-</html>
