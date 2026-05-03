@@ -1373,7 +1373,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
       p.verified&&React.createElement('div',{style:{position:'absolute',top:12,right:14,display:'flex',alignItems:'center',gap:5,background:'rgba(255,255,255,.2)',backdropFilter:'blur(8px)',borderRadius:20,padding:'4px 10px',border:'1px solid rgba(255,255,255,.3)'}},
         React.createElement(Ic,{n:'check',size:11,color:'#fff'}),
         React.createElement('span',{style:{fontSize:10,color:'#fff',fontWeight:600}}),'Verificado')
-    ),,
+    ),
     React.createElement('div',{className:'profile-hdr'},
       React.createElement('div',{className:'profile-id-row'},
         React.createElement('div',{style:{width:82,height:82,borderRadius:20,flexShrink:0,background:c.color+'25',border:'3px solid '+c.color+'50',color:c.color,fontSize:30,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Playfair Display,serif',fontWeight:700,overflow:'hidden',cursor:isOwn?'pointer':'default'},onClick:isOwn?()=>setShowEdit(true):undefined},p.photo?React.createElement('img',{src:p.photo,style:{width:'100%',height:'100%',objectFit:'cover'}}):initials(p.name)),
@@ -1821,7 +1821,7 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
               React.createElement('td',null,React.createElement('span',{style:{fontSize:10,color:p.verified?'#1f6b5e':'#9b8e7e',background:p.verified?'rgba(31,107,94,.12)':'var(--bg2)',borderRadius:5,padding:'2px 8px'}},p.verified?'Verificado':'Pendiente')),
               React.createElement('td',null,
                 p.isDemo
-                  ?React.createElement('span',{style:{fontSize:10,color:'#a07c28'}}),'Demo'
+                  ?React.createElement('span',{style:{fontSize:10,color:'#a07c28'}},'Demo')
                   :React.createElement('span',{style:{fontSize:10,fontWeight:600,color:p.status==='approved'?'#1f6b5e':p.status==='blocked'?'#c0392b':'#a07c28',background:p.status==='approved'?'rgba(31,107,94,.1)':p.status==='blocked'?'rgba(192,57,43,.1)':'rgba(160,124,40,.1)',borderRadius:5,padding:'2px 8px'}},p.status==='approved'?'✓ Aprobado':p.status==='blocked'?'✗ Bloqueado':'⏳ Pendiente')
               ),
               React.createElement('td',null,
@@ -1840,3 +1840,127 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
           )
         )
       )
+    )
+  );
+};
+
+/* ── ROOT APP ── */
+function App(){
+  const [loaded,setLoaded]=useState(false);
+  const [landing,setLanding]=useState(true);
+  const [view,setView]=useState('home');
+  const [profiles,setProfiles]=useState([]);
+  const [posts,setPosts]=useState([]);
+  const [users,setUsers]=useState([]);
+  const [currentUser,setCurrentUser]=useState(null);
+  const [selProf,setSelProf]=useState(null);
+  const [toast,setToast]=useState(null);
+  const [notifs,setNotifs]=useState([]);
+  const [showAuth,setShowAuth]=useState(false);
+  const [authMode,setAuthMode]=useState('login');
+  const [openChatWith,setOpenChatWith]=useState(null);
+  const [announcement,setAnnouncement]=useState(null);
+
+  /* ── Load from storage on mount ── */
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const pData=await DB.get('profiles',true);
+        const uData=await DB.get('users',true);
+        const postData=await DB.get('posts',true);
+        const seeded=await DB.get('nodo_seeded',true);
+        if(!seeded){
+          const sp=pData&&pData.length>0?pData:DEMO_PROFILES;
+          const spost=postData&&postData.length>0?postData:DEMO_POSTS;
+          setProfiles(sp);setPosts(spost);
+          await DB.set('profiles',sp,true);
+          await DB.set('posts',spost,true);
+          await DB.set('nodo_seeded',true,true);
+        }else{
+          if(pData)setProfiles(pData);
+          if(postData)setPosts(postData);
+        }
+        if(uData)setUsers(uData);
+        const sessData=await DB.get('session');
+        if(sessData){
+          setCurrentUser(sessData);
+          const nKey=sessData.role==='admin'?'notifs:admin':'notifs:'+sessData.id;
+          const n=await DB.get(nKey);setNotifs(n||[]);
+          setLanding(false);
+        }
+      }catch(e){console.warn('Load error',e);}
+      setLoaded(true);
+    })();
+  },[]);
+
+  useEffect(()=>{if(loaded)DB.set('profiles',profiles,true);},[profiles,loaded]);
+  useEffect(()=>{if(loaded)DB.set('posts',posts,true);},[posts,loaded]);
+  useEffect(()=>{if(loaded&&users.length>0)DB.set('users',users,true);},[users,loaded]);
+
+  const go=v=>{setView(v);try{window.scrollTo({top:0,behavior:'smooth'});}catch{}};
+  const showToast=msg=>setToast(msg);
+
+  const addNotifForAll=async({text,type,cat})=>{
+    const allUsers=await DB.get('users',true)||[];
+    for(const u of allUsers){
+      const interests=NOTIF_INTEREST[u.cat]||NOTIF_INTEREST['artista'];
+      if(!interests.includes('all')&&!interests.includes(type)&&!interests.includes(cat))continue;
+      try{
+        const existing=await DB.get('notifs:'+u.id)||[];
+        await DB.set('notifs:'+u.id,[{id:'n'+Date.now()+'_'+u.id,text,time:'ahora',unread:true,type},...existing].slice(0,50));
+        if(currentUser&&currentUser.id===u.id)setNotifs(prev=>[{id:'n'+Date.now(),text,time:'ahora',unread:true,type},...prev].slice(0,50));
+      }catch{}
+    }
+  };
+
+  const addProfile=async(p)=>{
+    const profileWithStatus={...p,status:'pending',approvedAt:null};
+    const newProfiles=[profileWithStatus,...profiles];setProfiles(newProfiles);
+    await addNotifForAll({text:'Nuevo perfil en la red: '+p.name+' ('+catInfo(p.cat).label+')',type:p.cat,cat:p.cat});
+    const adminNotif={id:'nadmin_'+Date.now(),text:'🆕 Nuevo perfil para aprobar: '+p.name+' ('+catInfo(p.cat).label+') — '+muniName(p.muni),time:'ahora',unread:true,type:'nuevo_perfil',profileId:p.id};
+    try{const existing=await DB.get('notifs:admin')||[];await DB.set('notifs:admin',[adminNotif,...existing].slice(0,100));}catch{}
+    const newPost={id:'post'+Date.now(),pid:p.id,text:'¡Hola! Me acabo de unir a NODO. Soy '+p.name+', '+catInfo(p.cat).label.toLowerCase()+' en '+muniName(p.muni)+'.',likes:0,comments:0,shares:0,time:'ahora',type:'work'};
+    setPosts(prev=>[newPost,...prev].slice(0,100));
+  };
+
+  const updateProfile=async(u)=>{
+    const newProfiles=profiles.map(p=>p.id===u.id?u:p);
+    setProfiles(newProfiles);
+    if(selProf&&selProf.id===u.id)setSelProf(u);
+  };
+
+  const onLogin=u=>{setCurrentUser(u);DB.get(u.role==='admin'?'notifs:admin':'notifs:'+u.id).then(n=>setNotifs(n||[])).catch(()=>{});};
+  const onLogout=async()=>{await DB.del('session');setCurrentUser(null);setNotifs([]);showToast('Sesión cerrada');};
+  const onAuthClick=mode=>{setAuthMode(mode);setShowAuth(true);};
+  const returnHome=()=>{setLanding(true);};
+  const handleLanding=role=>{
+    setLanding(false);
+    if(role==='admin')onAuthClick('login');
+    else if(role==='usuario')onAuthClick('register');
+    else setCurrentUser({id:'visitor_'+Date.now(),name:'Visitante',role:'visitor',photo:null,cat:'visitor'});
+  };
+
+  if(!loaded)return React.createElement('div',{style:{position:'fixed',inset:0,background:'#faf8f5',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}},React.createElement('div',{style:{fontFamily:'Playfair Display,serif',fontSize:32,color:'#c4611e',letterSpacing:4}},'NODO'),React.createElement('div',{className:'spin',style:{width:28,height:28}}));
+
+  return React.createElement(React.Fragment,null,
+    landing&&React.createElement(Landing,{onSelect:handleLanding}),
+    !landing&&React.createElement(React.Fragment,null,
+      React.createElement(Navbar,{view,go,currentUser,onLogout,onAuthClick,notifs,setNotifs:async(upd)=>{setNotifs(upd);if(currentUser){const k=currentUser.role==='admin'?'notifs:admin':'notifs:'+currentUser.id;await DB.set(k,upd);}},onReturnHome:returnHome,hasProfile:currentUser&&profiles.some(pr=>pr.userId===currentUser.id),onGoToProfile:()=>{const mp=profiles.find(pr=>pr.userId===currentUser.id);if(mp){setSelProf(mp);go('profile');}}}),
+      view==='home'&&React.createElement(HomePage,{profiles,posts,go,setProf:setSelProf,currentUser,onAuthClick}),
+      view==='map'&&React.createElement(MapPage,{profiles,go,setProf:setSelProf}),
+      view==='dir'&&React.createElement(DirPage,{profiles,go,setProf:setSelProf}),
+      view==='profile'&&selProf&&React.createElement(ProfilePage,{p:selProf,go,profiles,currentUser,onUpdateProfile:updateProfile,onAuthClick,addNotifForAll,setProf:setSelProf,onStartChat:(id)=>{setOpenChatWith(id);}}),
+      view==='create'&&React.createElement(CreatePage,{go,onAdd:addProfile,showToast,currentUser,onAuthClick,profiles}),
+      view==='chat'&&React.createElement(ChatPage,{profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,go}),
+      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:id=>setProfiles(prev=>prev.map(p=>p.id===id?{...p,verified:!p.verified}:p)),onDelete:id=>setProfiles(prev=>prev.filter(p=>p.id!==id))}),
+      React.createElement(BottomNav,{view,go,onReturnHome:returnHome,currentUser}),
+      showAuth&&React.createElement(AuthModal,{mode:authMode,onClose:()=>setShowAuth(false),onLogin,users,setUsers,showToast,onAfterRegister:(u)=>{if(authMode==='register'){go('create');}}}),
+      announcement&&currentUser&&currentUser.role!=='admin'&&React.createElement(AdminAnnouncement,{announcement,onDismiss:()=>setAnnouncement(null)}),
+      toast&&React.createElement(Toast,{msg:toast,onClose:()=>setToast(null)})
+    )
+  );
+}
+ReactDOM.createRoot(document.getElementById('app')).render(React.createElement(App));
+</script>
+</body>
+</html>
