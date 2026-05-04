@@ -223,12 +223,30 @@ select option{background:#ffffff;}
 .map-filter-fab{display:none;position:absolute;bottom:90px;left:16px;z-index:500;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--orange),var(--terra));border:none;color:#fff;font-size:20px;box-shadow:0 4px 16px rgba(249,115,22,.4);cursor:pointer;align-items:center;justify-content:center;}
 .map-filter-mobile-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:498;backdrop-filter:blur(3px);}
 @media(max-width:768px){
-  .map-filter-panel{display:flex!important;position:absolute;left:0;top:0;bottom:0;z-index:499;width:290px!important;transform:translateX(-100%);box-shadow:none;}
-  .map-filter-panel.open{transform:translateX(0)!important;box-shadow:4px 0 24px rgba(0,0,0,.2);}
-  .map-filter-panel.closed{transform:translateX(-100%)!important;}
+  .map-filter-panel{
+    display:flex!important;
+    position:fixed;
+    left:0;top:0;bottom:0;
+    z-index:600;
+    width:min(300px,85vw)!important;
+    transform:translateX(-100%);
+    box-shadow:none;
+    background:var(--bgc)!important;
+    overflow-y:auto;
+  }
+  .map-filter-panel.open{
+    transform:translateX(0)!important;
+    box-shadow:4px 0 32px rgba(0,0,0,.3)!important;
+  }
+  .map-filter-panel.closed{transform:translateX(-110%)!important;}
   .map-filter-fab{display:flex!important;}
-  .map-filter-mobile-overlay{display:block;}
+  .map-filter-mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:599;backdrop-filter:blur(2px);}
   .map-filter-mobile-overlay.visible{display:block!important;}
+  .map-filter-body{padding:16px;gap:14px;}
+  .map-filter-hdr{padding:16px;background:var(--bgc);}
+  .map-filter-results{padding:12px 16px;}
+  .mfb-chips{gap:6px;}
+  .mfb-chip{font-size:12px;padding:6px 12px;}
 }
 .map-filter-panel.open{width:270px;}
 .map-filter-panel.closed{width:0;overflow:hidden;}
@@ -309,7 +327,7 @@ select option{background:#ffffff;}
 .btn-back2:hover{border-color:var(--amb);color:var(--amb);}
 .btn-next{flex:2;padding:13px;border:none;border-radius:11px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;}
 /* CHAT */
-.chat-view{padding-top:58px;height:100vh;display:flex;overflow:hidden;}
+.chat-view{padding-top:58px;height:100dvh;display:flex;overflow:hidden;}
 .conv-list{width:340px;border-right:1px solid var(--brd);overflow-y:auto;flex-shrink:0;background:var(--bgc);}
 .conv-list-hdr{padding:14px 18px;border-bottom:1px solid var(--brd);}
 .conv-list-hdr h2{font-family:'museo-sans','freight-display-pro','Playfair Display',sans-serif;font-size:22px;color:var(--txt);}
@@ -332,7 +350,13 @@ select option{background:#ffffff;}
 .msg-bubble.me .msg-text{color:#fff;}
 .msg-time{font-size:9px;color:var(--txtm);margin-top:4px;text-align:right;}
 .msg-bubble.me .msg-time{color:rgba(255,255,255,.6);}
-.chat-input-row{display:flex;gap:9px;padding:12px 16px 18px;border-top:1px solid var(--brd);align-items:center;flex-shrink:0;background:var(--bgc);}
+.chat-input-row{display:flex;gap:9px;padding:12px 16px;border-top:1px solid var(--brd);align-items:center;flex-shrink:0;background:var(--bgc);padding-bottom:max(16px,env(safe-area-inset-bottom,16px));}
+@media(max-width:768px){
+  .chat-view{padding-bottom:0!important;}
+  .chat-msgs{padding-bottom:8px;}
+  .chat-input-row{padding:10px 12px;padding-bottom:max(12px,env(safe-area-inset-bottom,12px));position:sticky;bottom:0;z-index:50;}
+  .chat-input{font-size:16px!important;}/* Prevents iOS zoom on focus */
+}
 .chat-input{flex:1;padding:11px 15px;background:var(--bg);border:1px solid var(--brd);border-radius:22px;color:var(--txt);font-size:13px;}
 .chat-input:focus{outline:none;border-color:var(--amb);}
 .send-btn{width:42px;height:42px;border-radius:50%;border:none;background:linear-gradient(135deg,var(--amb),var(--terra));color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;}
@@ -416,6 +440,7 @@ tr:last-child td{border-bottom:none;}
 }
 @media(min-width:769px){.bottom-nav{display:none!important;}.chat-panel{display:flex!important;}}
 @keyframes fadein{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+@keyframes slideUp{from{opacity:0;transform:translateY(100%);}to{opacity:1;transform:translateY(0);}}
 .fadein{animation:fadein .25s ease forwards;}
 /* Leaflet container */
 #leaflet-map{flex:1;position:relative;}
@@ -445,24 +470,31 @@ tr:last-child td{border-bottom:none;}
 ::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px;}
 ::-webkit-scrollbar-thumb:hover{background:var(--brdl);}
 /* ── CAROUSEL ── */
-.carousel-section{background:var(--bg2);border-top:1px solid var(--brd);border-bottom:1px solid var(--brd);padding:0;overflow:hidden;position:relative;height:220px;}
+.carousel-section{background:var(--bg2);border-top:1px solid var(--brd);border-bottom:1px solid var(--brd);padding:0;overflow:hidden;position:relative;height:200px;}
 .carousel-track{display:flex;height:100%;transition:transform .6s cubic-bezier(.4,0,.2,1);}
-.carousel-slide{min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:0 24px;flex-shrink:0;}
-.carousel-inner{display:flex;align-items:center;gap:24px;max-width:960px;width:100%;}
-.carousel-img{width:160px;height:160px;border-radius:20px;object-fit:cover;flex-shrink:0;box-shadow:var(--shadow-l);}
-.carousel-img-placeholder{width:160px;height:160px;border-radius:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:48px;box-shadow:var(--shadow-l);}
-.carousel-body{flex:1;min-width:0;}
-.carousel-type{font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;}
-.carousel-title{font-family:'museo-sans','freight-display-pro',sans-serif;font-size:clamp(18px,3vw,28px);font-weight:700;color:var(--txt);line-height:1.2;margin-bottom:8px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
-.carousel-meta{font-size:13px;color:var(--txts);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-.carousel-cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.carousel-dots{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;}
-.carousel-dot{width:6px;height:6px;border-radius:50%;background:var(--brd);transition:all .3s;cursor:pointer;}
-.carousel-dot.active{background:var(--amb);width:20px;}
-.carousel-arrows{position:absolute;top:50%;transform:translateY(-50%);width:100%;display:flex;justify-content:space-between;padding:0 12px;pointer-events:none;}
-.carousel-arrow{pointer-events:all;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow);transition:all .15s;}
-.carousel-arrow:hover{background:#fff;box-shadow:var(--shadow-l);}
-.carousel-music-card{width:160px;height:160px;border-radius:20px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:var(--shadow-l);}
+.carousel-slide{min-width:100%;width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:0 16px;flex-shrink:0;box-sizing:border-box;}
+.carousel-inner{display:flex;align-items:center;gap:16px;width:100%;max-width:960px;}
+.carousel-img{width:120px;height:120px;border-radius:16px;object-fit:cover;flex-shrink:0;box-shadow:var(--shadow-l);}
+.carousel-img-placeholder{width:120px;height:120px;border-radius:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:40px;box-shadow:var(--shadow-l);}
+.carousel-body{flex:1;min-width:0;overflow:hidden;}
+.carousel-type{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;}
+.carousel-title{font-family:'museo-sans','freight-display-pro',sans-serif;font-size:clamp(15px,3.5vw,24px);font-weight:700;color:var(--txt);line-height:1.2;margin-bottom:5px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;}
+.carousel-meta{font-size:12px;color:var(--txts);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.carousel-cat-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.carousel-dots{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:5px;}
+.carousel-dot{width:5px;height:5px;border-radius:50%;background:var(--brd);transition:all .3s;cursor:pointer;}
+.carousel-dot.active{background:var(--amb);width:18px;}
+.carousel-arrows{position:absolute;top:50%;transform:translateY(-50%);width:100%;display:flex;justify-content:space-between;padding:0 6px;pointer-events:none;}
+.carousel-arrow{pointer-events:all;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.92);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow);}
+.carousel-music-card{width:120px;height:120px;border-radius:16px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;box-shadow:var(--shadow-l);}
+@media(max-width:480px){
+  .carousel-section{height:180px;}
+  .carousel-slide{padding:0 10px;}
+  .carousel-inner{gap:12px;}
+  .carousel-img,.carousel-img-placeholder,.carousel-music-card{width:100px;height:100px;border-radius:12px;}
+  .carousel-title{font-size:14px;}
+  .carousel-meta{font-size:11px;}
+}
 
 </style>
 </head>
@@ -2447,7 +2479,36 @@ function App(){
     return()=>unsub();
   },[loaded]);
 
-  const go=v=>{setView(v);try{window.scrollTo({top:0,behavior:'smooth'});}catch{}};
+  const [viewHistory,setViewHistory]=useState(['home']);
+
+  const go=v=>{
+    setView(v);
+    setViewHistory(h=>[...h,v]);
+    if(window.__nodoPushState) window.__nodoPushState(v);
+    try{window.scrollTo({top:0,behavior:'smooth'});}catch{}
+  };
+
+  /* Register back handler */
+  useEffect(()=>{
+    window.__nodoGoBack=(state)=>{
+      setViewHistory(h=>{
+        if(h.length<=1){
+          /* At root — ask to exit */
+          if(window.confirm('¿Quieres salir de NODO ART?')){
+            history.go(-2);
+          }
+          return h;
+        }
+        const newH=[...h];
+        newH.pop();
+        const prevView=newH[newH.length-1]||'home';
+        setView(prevView);
+        window.scrollTo({top:0,behavior:'smooth'});
+        return newH;
+      });
+    };
+    return()=>{window.__nodoGoBack=null;};
+  },[]);;
   const showToast=msg=>setToast(msg);
 
   const addNotifForAll=async({text,type,cat})=>{
@@ -2558,6 +2619,42 @@ function App(){
 }
 ReactDOM.createRoot(document.getElementById('app')).render(React.createElement(App));
 
+/* ── BACK BUTTON HANDLER ── */
+(function(){
+  let historyDepth = 0;
+  const views = ['home','map','dir','profile','create','chat','admin','terms'];
+
+  /* Push a state on every view change so we have history to go back through */
+  function pushState(view){
+    history.pushState({view, depth: ++historyDepth}, '', '');
+  }
+  /* Expose so React App can call it */
+  window.__nodoPushState = pushState;
+
+  window.addEventListener('popstate', function(e){
+    const state = e.state;
+
+    /* If we have React app state, go back within the app */
+    if(window.__nodoGoBack && typeof window.__nodoGoBack === 'function'){
+      window.__nodoGoBack(state);
+      /* Re-push so we always have a state to pop */
+      history.pushState({view: state?.view || 'home', depth: historyDepth}, '', '');
+      return;
+    }
+
+    /* No more history — ask before exit */
+    const confirmExit = window.confirm('¿Quieres salir de NODO ART?');
+    if(confirmExit){
+      history.go(-1);
+    } else {
+      history.pushState({}, '', '');
+    }
+  });
+
+  /* Initial push so there's always a state */
+  history.pushState({view:'home', depth:0}, '', '');
+})();
+
 /* ── PWA: Register Service Worker ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load', async()=>{
@@ -2571,32 +2668,55 @@ if('serviceWorker' in navigator){
 
 /* ── PWA: Install prompt (A2HS) ── */
 let deferredPrompt = null;
+
+/* Show install banner immediately on mobile if not dismissed and not installed */
+function checkShowInstallBanner(){
+  const isInstalled = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  const dismissed = localStorage.getItem('nodo_install_dismissed');
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(!isInstalled && !dismissed && isMobile){
+    setTimeout(showInstallBanner, 2000);
+  }
+}
+
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredPrompt = e;
-  /* Show install banner after 3 seconds if not dismissed */
-  setTimeout(() => {
-    if(deferredPrompt && !localStorage.getItem('nodo_install_dismissed')){
-      showInstallBanner();
-    }
-  }, 3000);
+  checkShowInstallBanner();
+});
+
+/* Also show on iOS where beforeinstallprompt doesn't fire */
+window.addEventListener('load', () => {
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isInstalled = window.navigator.standalone;
+  if(isIOS && !isInstalled && !localStorage.getItem('nodo_install_dismissed')){
+    setTimeout(showInstallBanner, 2000);
+  }
 });
 
 function showInstallBanner(){
   if(document.getElementById('nodo-install-banner')) return;
   const banner = document.createElement('div');
   banner.id = 'nodo-install-banner';
-  banner.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;background:#fff;border:2px solid #f97316;border-radius:18px;padding:16px 18px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.15);display:flex;align-items:center;gap:12px;font-family:museo-sans,sans-serif;animation:fadeUp .3s ease;';
+  banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:3px solid #f97316;border-radius:24px 24px 0 0;padding:20px 20px 32px;z-index:9999;box-shadow:0 -8px 40px rgba(0,0,0,.2);display:flex;align-items:center;gap:14px;font-family:museo-sans,sans-serif;animation:slideUp .4s cubic-bezier(.16,1,.3,1);';
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const iosGuide = isIOS ? `<div style="margin-top:10px;padding:10px 12px;background:#f8fafc;border-radius:10px;font-size:12px;color:#4b5563;line-height:1.6;border:1px solid #e2e8f0;"><strong>En Safari:</strong> toca <strong>⬆️ Compartir</strong> → <strong>"Agregar a pantalla de inicio"</strong></div>` : '';
+  const actionBtn = isIOS ? '' : `<button onclick="installApp()" style="padding:10px 18px;border:none;border-radius:12px;background:linear-gradient(135deg,#f97316,#dc2626);color:#fff;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 4px 14px rgba(249,115,22,.4);">Instalar gratis</button>`;
   banner.innerHTML = `
-    <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#f97316,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-      <div style="width:12px;height:12px;border-radius:50%;background:#fff;"></div>
+    <div style="flex:1;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#f97316,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(249,115,22,.4);">
+          <div style="width:14px;height:14px;border-radius:50%;background:#fff;"></div>
+        </div>
+        <div>
+          <div style="font-weight:800;font-size:16px;color:#111;">📲 Instala NODO ART</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px;">App gratis · Sin App Store · Notificaciones de chat</div>
+        </div>
+        <button onclick="dismissInstall()" style="padding:6px;border:none;background:#f1f5f9;border-radius:50%;color:#9ca3af;font-size:16px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">×</button>
+      </div>
+      ${iosGuide}
+      ${actionBtn ? `<div style="margin-top:12px;">${actionBtn}</div>` : ''}
     </div>
-    <div style="flex:1;min-width:0;">
-      <div style="font-weight:700;font-size:14px;color:#111;">Instala NODO ART</div>
-      <div style="font-size:12px;color:#6b7280;margin-top:2px;">Accede sin internet y recibe notificaciones</div>
-    </div>
-    <button onclick="installApp()" style="padding:8px 16px;border:none;border-radius:10px;background:linear-gradient(135deg,#f97316,#dc2626);color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Instalar</button>
-    <button onclick="dismissInstall()" style="padding:8px;border:none;background:none;color:#9ca3af;font-size:18px;cursor:pointer;line-height:1;">×</button>
   `;
   document.body.appendChild(banner);
 }
