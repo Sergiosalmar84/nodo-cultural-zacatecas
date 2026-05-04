@@ -426,6 +426,26 @@ tr:last-child td{border-bottom:none;}
 /* Modern scrollbar */
 ::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px;}
 ::-webkit-scrollbar-thumb:hover{background:var(--brdl);}
+/* ── CAROUSEL ── */
+.carousel-section{background:var(--bg2);border-top:1px solid var(--brd);border-bottom:1px solid var(--brd);padding:0;overflow:hidden;position:relative;height:220px;}
+.carousel-track{display:flex;height:100%;transition:transform .6s cubic-bezier(.4,0,.2,1);}
+.carousel-slide{min-width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:0 24px;flex-shrink:0;}
+.carousel-inner{display:flex;align-items:center;gap:24px;max-width:960px;width:100%;}
+.carousel-img{width:160px;height:160px;border-radius:20px;object-fit:cover;flex-shrink:0;box-shadow:var(--shadow-l);}
+.carousel-img-placeholder{width:160px;height:160px;border-radius:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:48px;box-shadow:var(--shadow-l);}
+.carousel-body{flex:1;min-width:0;}
+.carousel-type{font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;}
+.carousel-title{font-family:'museo-sans','freight-display-pro',sans-serif;font-size:clamp(18px,3vw,28px);font-weight:700;color:var(--txt);line-height:1.2;margin-bottom:8px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.carousel-meta{font-size:13px;color:var(--txts);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.carousel-cat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.carousel-dots{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;}
+.carousel-dot{width:6px;height:6px;border-radius:50%;background:var(--brd);transition:all .3s;cursor:pointer;}
+.carousel-dot.active{background:var(--amb);width:20px;}
+.carousel-arrows{position:absolute;top:50%;transform:translateY(-50%);width:100%;display:flex;justify-content:space-between;padding:0 12px;pointer-events:none;}
+.carousel-arrow{pointer-events:all;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow);transition:all .15s;}
+.carousel-arrow:hover{background:#fff;box-shadow:var(--shadow-l);}
+.carousel-music-card{width:160px;height:160px;border-radius:20px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:var(--shadow-l);}
+
 </style>
 </head>
 <body>
@@ -916,6 +936,204 @@ const TermsPage=({go})=>React.createElement('div',{style:{paddingTop:58,minHeigh
   )
 );
 
+
+/* ── PROFILE RATING COMPONENT ── */
+const ProfileRating=({p,currentUser,onUpdateProfile,onAuthClick})=>{
+  const myLike=(p.likedBy||[]).includes(currentUser?.id);
+  const [hoveredStar,setHoveredStar]=useState(0);
+  const myRating=(p.userRatings||{})[currentUser?.id]||0;
+  const avgRating=p.rating||0;
+  const totalRatings=Object.keys(p.userRatings||{}).length;
+
+  const toggleLike=async()=>{
+    if(!currentUser||currentUser.role==='visitor'){onAuthClick('login');return;}
+    if(currentUser.id===p.userId){return;}
+    const likedBy=p.likedBy||[];
+    const newLikedBy=myLike?likedBy.filter(id=>id!==currentUser.id):[...likedBy,currentUser.id];
+    onUpdateProfile({...p,likedBy:newLikedBy,conns:newLikedBy.length});
+  };
+
+  const setRating=async(stars)=>{
+    if(!currentUser||currentUser.role==='visitor'){onAuthClick('login');return;}
+    if(currentUser.id===p.userId){return;}
+    const userRatings={...(p.userRatings||{}),[currentUser.id]:stars};
+    const vals=Object.values(userRatings);
+    const avg=vals.length>0?Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*10)/10:0;
+    onUpdateProfile({...p,userRatings,rating:avg});
+  };
+
+  const El=React.createElement;
+  return El('div',{style:{background:'var(--bgc)',border:'1px solid var(--brd)',borderRadius:16,padding:'20px 22px',marginBottom:18,display:'flex',gap:24,alignItems:'center',flexWrap:'wrap'}},
+    /* Likes */
+    El('div',{style:{display:'flex',alignItems:'center',gap:10}},
+      El('button',{onClick:toggleLike,disabled:!currentUser||currentUser.role==='visitor'||currentUser.id===p.userId,style:{
+        display:'flex',alignItems:'center',gap:7,padding:'10px 18px',borderRadius:30,
+        border:'2px solid '+(myLike?'#e11d48':'var(--brd)'),
+        background:myLike?'rgba(225,29,72,.08)':'transparent',
+        color:myLike?'#e11d48':'var(--txts)',
+        fontSize:14,fontWeight:600,cursor:currentUser&&currentUser.id!==p.userId?'pointer':'default',
+        transition:'all .2s'
+      }},
+        El('span',{style:{fontSize:18}},myLike?'❤️':'🤍'),
+        El('span',null,(p.likedBy||[]).length),
+        El('span',{style:{fontSize:12,color:'var(--txtm)'}},'Me gusta')
+      )
+    ),
+    /* Star rating */
+    El('div',{style:{display:'flex',alignItems:'center',gap:8}},
+      El('div',{style:{display:'flex',gap:3}},
+        [1,2,3,4,5].map(star=>El('button',{key:star,
+          onMouseEnter:()=>currentUser&&currentUser.id!==p.userId&&setHoveredStar(star),
+          onMouseLeave:()=>setHoveredStar(0),
+          onClick:()=>setRating(star),
+          disabled:!currentUser||currentUser.role==='visitor'||currentUser.id===p.userId,
+          style:{
+            background:'none',border:'none',fontSize:22,cursor:currentUser&&currentUser.id!==p.userId?'pointer':'default',
+            color:(hoveredStar||myRating)>=star?'#f59e0b':'#d1d5db',
+            transition:'color .1s',padding:'0 1px'
+          }
+        },'★'))
+      ),
+      El('div',{style:{display:'flex',flexDirection:'column'}},
+        El('div',{style:{fontSize:16,fontWeight:700,color:'var(--txt)'}},(avgRating||0).toFixed(1),' ',El('span',{style:{fontSize:11,color:'var(--txtm)',fontWeight:400}},'/ 5.0')),
+        El('div',{style:{fontSize:11,color:'var(--txtm)'}},totalRatings,' calificación'+(totalRatings!==1?'es':''))
+      )
+    ),
+    /* Message for own profile */
+    currentUser&&currentUser.id===p.userId&&El('div',{style:{fontSize:12,color:'var(--txtm)',fontStyle:'italic'}},'Las valoraciones las dan otros usuarios de la red.')
+  );
+};
+
+
+/* ── HOME CAROUSEL ── */
+const HomeCarousel=({profiles,go,setProf})=>{
+  const [idx,setIdx]=useState(0);
+  const [paused,setPaused]=useState(false);
+  const timerRef=useRef(null);
+
+  /* Build carousel items from profiles */
+  const items=useMemo(()=>{
+    const out=[];
+    /* New profiles */
+    [...profiles].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).slice(0,6).forEach(p=>{
+      out.push({type:'perfil',profile:p,title:p.name,subtitle:p.bio,img:p.photo,color:catInfo(p.cat).color,label:catInfo(p.cat).label});
+    });
+    /* Photos from portfolio */
+    profiles.forEach(p=>{
+      (p.portfolio||[]).filter(i=>i.type==='photo'&&i.url).slice(0,2).forEach(item=>{
+        out.push({type:'foto',profile:p,title:item.title||'Nueva fotografía',subtitle:'por '+p.name,img:item.url,color:catInfo(p.cat).color,label:'Fotografía'});
+      });
+    });
+    /* Music */
+    profiles.filter(p=>p.musicUrl).forEach(p=>{
+      out.push({type:'musica',profile:p,title:'Escucha a '+p.name,subtitle:p.musicUrl.includes('spotify')?'En Spotify':'En SoundCloud',img:null,color:p.musicUrl.includes('spotify')?'#1DB954':'#ff5500',label:p.musicUrl.includes('spotify')?'Spotify':'SoundCloud',emoji:p.musicUrl.includes('spotify')?'🎵':'🎧',link:p.musicUrl});
+    });
+    /* Convocatorias */
+    profiles.forEach(p=>{
+      (p.convocatorias||[]).slice(0,1).forEach(c=>{
+        out.push({type:'convocatoria',profile:p,title:c.title,subtitle:'Publicada por '+p.name+' · '+muniName(p.muni),img:c.img||null,color:'#7c3aed',label:'Convocatoria',emoji:'📢'});
+      });
+    });
+    /* Crowdfunding */
+    profiles.forEach(p=>{
+      (p.proyectos||[]).filter(pr=>pr.goal&&(pr.raised||0)<pr.goal).slice(0,1).forEach(pr=>{
+        const pct=Math.min(99,Math.round(((pr.raised||0)/(pr.goal||1))*100));
+        out.push({type:'antorcha',profile:p,title:pr.title,subtitle:p.name+' · '+pct+'% alcanzado de $'+pr.goal.toLocaleString()+' MXN',img:p.photo,color:'#f97316',label:'🔥 Antorcha activa',pct});
+      });
+    });
+    /* Shuffle and limit */
+    return out.sort(()=>Math.random()-.4).slice(0,Math.min(out.length,20));
+  },[profiles]);
+
+  const total=items.length;
+
+  useEffect(()=>{
+    if(total<=1||paused)return;
+    timerRef.current=setInterval(()=>setIdx(i=>(i+1)%total),2000);
+    return()=>clearInterval(timerRef.current);
+  },[total,paused]);
+
+  const prev=()=>{setIdx(i=>(i-1+total)%total);};
+  const next=()=>{setIdx(i=>(i+1)%total);};
+
+  if(total===0)return null;
+
+  const item=items[idx]||items[0];
+  const cat=catInfo(item.profile?.cat);
+
+  const El=React.createElement;
+  return El('div',{className:'carousel-section',
+    onMouseEnter:()=>setPaused(true),
+    onMouseLeave:()=>setPaused(false)},
+    El('div',{className:'carousel-track',style:{transform:`translateX(-${idx*100}%)`}},
+      items.map((it,i)=>{
+        const c=catInfo(it.profile?.cat);
+        return El('div',{key:i,className:'carousel-slide'},
+          El('div',{className:'carousel-inner',onClick:()=>{if(it.profile){setProf(it.profile);go('profile');}},style:{cursor:it.profile?'pointer':'default'}},
+            /* Visual */
+            it.type==='musica'
+              ?El('div',{className:'carousel-music-card',style:{background:it.color}},
+                  El('div',{style:{fontSize:52}},'🎵'),
+                  El('div',{style:{fontSize:11,color:'rgba(255,255,255,.8)',fontWeight:700,letterSpacing:2}},(it.label||'MÚSICA').toUpperCase())
+                )
+              :it.type==='antorcha'
+                ?El('div',{className:'carousel-music-card',style:{background:'linear-gradient(135deg,#7c2d12,#f97316)'}},
+                    El('div',{style:{fontSize:52}},'🔥'),
+                    El('div',{style:{width:'80%'}},
+                      El('div',{style:{height:5,background:'rgba(255,255,255,.2)',borderRadius:20,overflow:'hidden'}},
+                        El('div',{style:{height:'100%',background:'#fff',width:(it.pct||0)+'%',borderRadius:20}})
+                      )
+                    ),
+                    El('div',{style:{fontSize:10,color:'rgba(255,255,255,.8)',fontWeight:700}},(it.pct||0)+'% alcanzado')
+                  )
+              :it.type==='convocatoria'
+                ?El('div',{className:'carousel-music-card',style:{background:'linear-gradient(135deg,#5b21b6,#7c3aed)'}},
+                    El('div',{style:{fontSize:52}},'📢'),
+                    El('div',{style:{fontSize:11,color:'rgba(255,255,255,.8)',fontWeight:700,letterSpacing:1}},it.profile?catInfo(it.profile.cat).label.toUpperCase():'')
+                  )
+              :it.img
+                ?El('img',{src:it.img,className:'carousel-img',alt:it.title,onError:e=>{e.target.style.display='none';}})
+                :El('div',{className:'carousel-img-placeholder',style:{background:it.color+'22',border:'2px solid '+it.color+'33'}},
+                    El('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:40,fontWeight:900,color:it.color}},
+                      (it.title||'?')[0]?.toUpperCase()
+                    )
+                  ),
+            /* Body */
+            El('div',{className:'carousel-body'},
+              El('div',{className:'carousel-type',style:{color:it.color}},it.label||''),
+              El('div',{className:'carousel-title'},it.title),
+              El('div',{className:'carousel-meta'},
+                El('div',{className:'carousel-cat-dot',style:{background:c.color}}),
+                El('span',null,it.subtitle||''),
+                it.profile&&El('span',{style:{color:c.color,fontSize:11}},muniName(it.profile.muni))
+              ),
+              it.type==='musica'&&it.link&&El('a',{href:it.link,target:'_blank',rel:'noopener noreferrer',onClick:e=>e.stopPropagation(),style:{display:'inline-flex',alignItems:'center',gap:6,marginTop:12,padding:'8px 16px',background:it.color,borderRadius:20,color:'#fff',fontSize:12,fontWeight:600,textDecoration:'none'}},
+                El('span',null,'▶'),El('span',null,'Escuchar ahora')
+              ),
+              it.type==='antorcha'&&El('div',{style:{marginTop:12,display:'inline-flex',alignItems:'center',gap:6,padding:'8px 16px',background:'rgba(249,115,22,.1)',border:'1px solid rgba(249,115,22,.3)',borderRadius:20,color:'#f97316',fontSize:12,fontWeight:600}},
+                '🔥 Apoyar este proyecto'
+              )
+            )
+          )
+        );
+      })
+    ),
+    /* Arrows */
+    El('div',{className:'carousel-arrows'},
+      El('button',{className:'carousel-arrow',onClick:e=>{e.stopPropagation();prev();}},
+        El(Ic,{n:'arrow_l',size:16,color:'var(--txts)'})
+      ),
+      El('button',{className:'carousel-arrow',onClick:e=>{e.stopPropagation();next();}},
+        El(Ic,{n:'arrow_l',size:16,color:'var(--txts)',style:{transform:'rotate(180deg)'}})
+      )
+    ),
+    /* Dots */
+    El('div',{className:'carousel-dots'},
+      items.slice(0,Math.min(items.length,12)).map((_,i)=>El('div',{key:i,className:'carousel-dot'+(i===idx?' active':''),onClick:()=>setIdx(i)}))
+    )
+  );
+};
+
 /* ── MAP PAGE — Leaflet + OpenStreetMap (free, no API key) ── */
 const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
   const mapRef=useRef(null);
@@ -1189,22 +1407,24 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
     }
   };
   const doRegister=async()=>{
-    setErr('');if(!name.trim()||!email.trim()||!pass||!confirm){setErr('Completa todos los campos.');return;}
+    setErr('');if(!name.trim()||!email.trim()||!pass||!confirm||!phone.trim()){setErr('Completa todos los campos incluyendo el teléfono.');return;}
+    if(phone.replace(/\D/g,'').length<10){setErr('Ingresa un número de teléfono válido (10 dígitos).');return;}
     if(pass!==confirm){setErr('Las contraseñas no coinciden.');return;}
     if(pass.length<6){setErr('Contraseña: mínimo 6 caracteres.');return;}
+    if(email.trim()===ADMIN_EMAIL||email.trim()==='4921449205'){setErr('Este correo no está disponible para registro.');return;}
     let newU;
     if(_fbReady&&_auth){
       try{
         const cred=await _auth.createUserWithEmailAndPassword(email.trim(),pass);
         const uid=cred.user.uid;
-        newU={id:uid,email:email.trim(),name:name.trim(),role:'user',photo:null,cat:cat||'artista',joinedAt:fmtDate()};
+        newU={id:uid,email:email.trim(),name:name.trim(),role:'user',photo:null,cat:cat||'artista',phone:phone.trim(),joinedAt:fmtDate()};
         await _db.collection('users').doc(uid).set(newU);
       }catch(e){
         setErr(e.code==='auth/email-already-in-use'?'Este correo ya está registrado.':e.code==='auth/invalid-email'?'Correo inválido.':'Error al crear cuenta: '+e.message);return;
       }
     }else{
       if(users.find(u=>u.email===email.trim())){setErr('Este correo ya está registrado.');return;}
-      newU={id:'u'+Date.now(),email:email.trim(),password:pass,name:name.trim(),role:'user',photo:null,cat:cat||'artista',joinedAt:fmtDate()};
+      newU={id:'u'+Date.now(),email:email.trim(),password:pass,name:name.trim(),role:'user',photo:null,cat:cat||'artista',phone:phone.trim(),joinedAt:fmtDate()};
       const newUsers=[...users,newU];setUsers(newUsers);await DB.set('users',newUsers,true);
     }
     await DB.set('session',newU);
@@ -1236,7 +1456,15 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
               '¿No encuentras tu perfil? Elige "Otro" y escribe tu especialidad. Si hay muchos como tú, lo agregaremos como categoría oficial.'),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Correo electrónico'),React.createElement('input',{className:'field-input',value:email,onChange:e=>setEmail(e.target.value),placeholder:'correo@dominio.com'})),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Contraseña'),React.createElement('input',{className:'field-input',type:'password',value:pass,onChange:e=>setPass(e.target.value),placeholder:'••••••••'})),
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Confirmar contraseña'),React.createElement('input',{className:'field-input',type:'password',value:confirm,onChange:e=>setConfirm(e.target.value),onKeyDown:e=>e.key==='Enter'&&doRegister(),placeholder:'Repite la contraseña'}))
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Confirmar contraseña'),React.createElement('input',{className:'field-input',type:'password',value:confirm,onChange:e=>setConfirm(e.target.value),placeholder:'Repite la contraseña'})),
+            React.createElement('div',null,
+              React.createElement('label',{className:'field-label'},'Teléfono WhatsApp *'),
+              React.createElement('div',{className:'field-wrap'},
+                React.createElement('span',{className:'field-ico',style:{fontSize:14}},'📱'),
+                React.createElement('input',{className:'field-input pl',type:'tel',value:phone,onChange:e=>setPhone(e.target.value.replace(/[^0-9+\-\s]/g,'')),onKeyDown:e=>e.key==='Enter'&&doRegister(),placeholder:'+52 492 000 0000',maxLength:15})
+              ),
+              React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',marginTop:4,lineHeight:1.5}},'Para que otros creadores puedan contactarte directo por WhatsApp.')
+            )
           ),
       tab==='register'&&React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:9,margin:'4px 0 14px',padding:'10px 12px',background:'rgba(196,97,30,.04)',border:'1px solid rgba(196,97,30,.12)',borderRadius:9}},
           React.createElement('input',{type:'checkbox',id:'terms-chk',style:{marginTop:2,accentColor:'#c4611e',cursor:'pointer',flexShrink:0}}),
@@ -1382,6 +1610,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
       React.createElement('div',{className:'search-bar'},React.createElement('span',{className:'search-ico'},React.createElement(Ic,{n:'search',size:17,color:'#9b8e7e'})),React.createElement('input',{onClick:()=>go('dir'),readOnly:true,placeholder:'Buscar artistas, espacios, municipios...'})),
       React.createElement('div',{className:'hero-stats'},[{v:profiles.length,l:'Perfiles'},{v:MUNIS58.length,l:'Municipios'},{v:profiles.reduce((s,p)=>s+(p.conns||0),0),l:'Conexiones'},{v:profiles.reduce((s,p)=>s+(p.convocatorias||[]).length,0),l:'Convocatorias'}].map(s=>React.createElement('div',{key:s.l,className:'stat-item'},React.createElement('div',{className:'stat-num'},s.v),React.createElement('div',{className:'stat-lbl'},s.l))))
     ),
+    React.createElement(HomeCarousel,{profiles,go,setProf}),
     React.createElement('div',{className:'home-wrap'},
       React.createElement('div',{className:'home-grid'},
         React.createElement('div',null,
@@ -1569,6 +1798,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
             )
         )
       ),
+      React.createElement(ProfileRating,{p,currentUser,onUpdateProfile,onAuthClick}),
       React.createElement('div',{className:'profile-stats-row'},
         React.createElement(StatPill,{icon:'users',val:p.conns||0,label:'conexiones'}),
         p.rating>0&&React.createElement(StatPill,{icon:'star',val:p.rating,label:'calificación'}),
@@ -2075,7 +2305,7 @@ function App(){
     })();
   },[]);
 
-  useEffect(()=>{if(loaded)DB.set('profiles',profiles,true);},[profiles,loaded]);
+  /* Profiles auto-save disabled — saved explicitly on each mutation to avoid race conditions */
   useEffect(()=>{if(loaded)DB.set('posts',posts,true);},[posts,loaded]);
   useEffect(()=>{if(loaded&&users.length>0)DB.set('users',users,true);},[users,loaded]);
 
@@ -2097,7 +2327,7 @@ function App(){
 
   const addProfile=async(p)=>{
     const profileWithStatus={...p,status:'pending',approvedAt:null};
-    const newProfiles=[profileWithStatus,...profiles];setProfiles(newProfiles);
+    const newProfiles=[profileWithStatus,...profiles];setProfiles(newProfiles);await DB.set('profiles',newProfiles,true);
     await addNotifForAll({text:'Nuevo perfil en la red: '+p.name+' ('+catInfo(p.cat).label+')',type:p.cat,cat:p.cat});
     const adminNotif={id:'nadmin_'+Date.now(),text:'🆕 Nuevo perfil para aprobar: '+p.name+' ('+catInfo(p.cat).label+') — '+muniName(p.muni),time:'ahora',unread:true,type:'nuevo_perfil',profileId:p.id};
     try{const existing=await DB.get('notifs:admin')||[];await DB.set('notifs:admin',[adminNotif,...existing].slice(0,100));}catch{}
@@ -2108,6 +2338,7 @@ function App(){
   const updateProfile=async(u)=>{
     const newProfiles=profiles.map(p=>p.id===u.id?u:p);
     setProfiles(newProfiles);
+    await DB.set('profiles',newProfiles,true);
     if(selProf&&selProf.id===u.id)setSelProf(u);
   };
 
@@ -2135,7 +2366,9 @@ function App(){
       view==='create'&&React.createElement(CreatePage,{go,onAdd:addProfile,showToast,currentUser,onAuthClick,profiles}),
       view==='chat'&&React.createElement(ChatPage,{profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,go}),
       view==='terms'&&React.createElement(TermsPage,{go}),
-      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:id=>setProfiles(prev=>prev.map(p=>p.id===id?{...p,verified:!p.verified}:p)),onDelete:id=>setProfiles(prev=>prev.filter(p=>p.id!==id))}),
+      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:async id=>{const np=profiles.map(p=>p.id===id?{...p,verified:!p.verified}:p);setProfiles(np);await DB.set('profiles',np,true);showToast(np.find(p=>p.id===id)?.verified?'✓ Perfil verificado':'Verificación removida');},
+      onDelete:async id=>{const np=profiles.filter(p=>p.id!==id);setProfiles(np);await DB.set('profiles',np,true);}
+      }),
       React.createElement(BottomNav,{view,go,onReturnHome:returnHome,currentUser}),
       showAuth&&React.createElement(AuthModal,{mode:authMode,onClose:()=>setShowAuth(false),onLogin,users,setUsers,showToast,onAfterRegister:(u)=>{if(authMode==='register'){go('create');}}}),
       announcement&&currentUser&&currentUser.role!=='admin'&&React.createElement(AdminAnnouncement,{announcement,onDismiss:()=>setAnnouncement(null)}),
