@@ -2257,7 +2257,7 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
     await onAdd(newP);showToast('✓ Perfil publicado en NODO');go('dir');
   };
   const steps=[{n:1,l:'Identidad'},{n:2,l:'Ubicación'},{n:3,l:'Categorías'},{n:4,l:'Bio'},{n:5,l:'Contacto'}];
-  const ok={1:f.name.trim()&&f.cat,2:f.muni,3:true,4:f.bio.trim().length>10,5:true};
+  const ok={1:f.name.trim()&&(f.cats&&f.cats.length>0),2:f.muni,3:true,4:f.bio.trim().length>10,5:true};
   return React.createElement('div',{className:'create-view fadein'},
     React.createElement('div',{className:'create-wrap'},
       React.createElement('button',{onClick:()=>go('home'),style:{display:'flex',alignItems:'center',gap:5,background:'none',border:'none',color:'var(--txts)',fontSize:13,marginBottom:22,cursor:'pointer'}},React.createElement(Ic,{n:'arrow_l',size:13,color:'var(--txts)'}),'Volver'),
@@ -2270,8 +2270,8 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
           React.createElement('div',{style:{display:'flex',justifyContent:'center',marginBottom:22}},React.createElement(PhotoUpload,{photo:f.photo,onChange:v=>upd('photo',v)})),
           React.createElement('div',{className:'field-group'},
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Nombre / Nombre artístico *'),React.createElement('input',{className:'field-input',value:f.name,onChange:e=>upd('name',e.target.value),placeholder:'Tu nombre, espacio o colectivo...'})),
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de perfil * (puedes elegir varios)'),
-            React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:7,maxHeight:280,overflowY:'auto',padding:'4px 0'}},
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de perfil * — elige todos los que apliquen'),
+            React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:7,maxHeight:420,overflowY:'auto',padding:'4px 0'}},
               CATS_PROFILE.filter(c=>c.id!=='all'&&c.id!=='otro').map(cat=>
                 React.createElement('label',{key:cat.id,style:{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:9,border:'1px solid '+((f.cats||[]).includes(cat.id)?cat.color:'var(--brd)'),background:(f.cats||[]).includes(cat.id)?cat.color+'12':'transparent',cursor:'pointer',transition:'all .15s'}},
                   React.createElement('input',{type:'checkbox',checked:(f.cats||[]).includes(cat.id),onChange:e=>{const cur=f.cats||[];upd('cats',e.target.checked?[...cur,cat.id]:cur.filter(c=>c!==cat.id));},style:{width:16,height:16,accentColor:cat.color,flexShrink:0}}),
@@ -2282,7 +2282,10 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
                 React.createElement('input',{className:'field-input',placeholder:'¿Otra especialidad? Escríbela aquí...',style:{fontSize:13},onChange:e=>{const v=e.target.value.trim();if(v.length>2){const cur=f.cats||[];const cid='otro_'+v;if(!cur.includes(cid))upd('cats',[...cur.filter(c=>!c.startsWith('otro_')),cid]);}}})
               )
             ),
-            (f.cats||[]).length>0&&React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap',marginTop:6}},
+            React.createElement('div',{style:{fontSize:11,color:'var(--txts)',marginTop:6,marginBottom:2}},
+            (f.cats||[]).length===0?'Ninguno seleccionado aún':(f.cats||[]).length+' tipo'+(( f.cats||[]).length>1?'s':'')+' seleccionado'+(( f.cats||[]).length>1?'s':'')
+          ),
+            (f.cats||[]).length>0&&React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap',marginTop:4}},
               (f.cats||[]).map(c=>{const ci=catInfo(c);return React.createElement('span',{key:c,style:{padding:'3px 9px',borderRadius:20,background:ci.color+'18',border:'1px solid '+ci.color+'35',color:ci.color,fontSize:11,fontWeight:600}},ci.label);})
             )
             )
