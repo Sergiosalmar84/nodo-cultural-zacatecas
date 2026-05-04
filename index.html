@@ -2137,7 +2137,7 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
 };
 
 /* ── ADMIN PAGE ── */
-const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onSendAnnouncement,showToast})=>{
+const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onApprove,onBlock,onDeleteDemos,onSendAnnouncement,showToast})=>{
   const [adminTab,setAdminTab]=useState('dashboard');
   const [emailSubject,setEmailSubject]=useState('');const [emailBody,setEmailBody]=useState('');const [emailType,setEmailType]=useState('convocatoria');const [recipients,setRecipients]=useState([]);const [recInput,setRecInput]=useState('');const [sendAll,setSendAll]=useState(false);const [sending,setSending]=useState(false);
   const [filterCat,setFilterCat]=useState('all');const [filterMuni,setFilterMuni]=useState('all');
@@ -2175,7 +2175,7 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
             React.createElement('div',{style:{fontSize:13,color:'#a07c28',fontWeight:600,marginBottom:2}},React.createElement(Ic,{n:'star',size:13,color:'#a07c28'}),' '+profiles.filter(p=>p.isDemo).length+' perfiles de demostración activos'),
             React.createElement('div',{style:{fontSize:11,color:'var(--txts)',lineHeight:1.5}},'Estos perfiles ilustran el funcionamiento de la plataforma. Cuando tengas suficientes usuarios reales puedes eliminarlos.')
           ),
-          React.createElement('button',{onClick:async()=>{if(!window.confirm('¿Eliminar todos los perfiles y publicaciones de demostración? Esta acción no se puede deshacer.'))return;const newP=profiles.filter(p=>!p.isDemo);const newPosts=(await DB.get('posts',true)||[]).filter(p=>!p.isDemo);setProfiles(newP);setPosts(newPosts);await DB.set('profiles',newP,true);await DB.set('posts',newPosts,true);},style:{padding:'8px 16px',background:'rgba(160,124,40,.15)',border:'1px solid rgba(160,124,40,.35)',borderRadius:9,color:'#a07c28',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}},React.createElement(Ic,{n:'x',size:13,color:'#a07c28'}),' Eliminar perfiles demo')
+          React.createElement('button',{onClick:()=>onDeleteDemos(),style:{padding:'8px 16px',background:'rgba(160,124,40,.15)',border:'1px solid rgba(160,124,40,.35)',borderRadius:9,color:'#a07c28',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}},React.createElement(Ic,{n:'x',size:13,color:'#a07c28'}),' Eliminar perfiles demo')
         ),
         React.createElement('div',{className:'kpi-grid'},kpis.map(k=>React.createElement('div',{key:k.l,className:'kpi'},React.createElement('div',{className:'kpi-icon',style:{background:k.c+'15'}},React.createElement(Ic,{n:k.i,size:15,color:k.c})),React.createElement('div',{className:'kpi-val',style:{color:k.c}},k.v),React.createElement('div',{className:'kpi-lbl'},k.l)))),
         React.createElement('div',{className:'charts-row'},
@@ -2239,9 +2239,9 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
               React.createElement('td',null,
                 React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
                   /* Approve */
-                  !p.isDemo&&React.createElement('button',{onClick:async()=>{const isApproved=p.status==='approved';const np=profiles.map(x=>x.id===p.id?{...x,status:isApproved?'pending':'approved',approvedAt:isApproved?null:fmtDate()}:x);setProfiles(np);await DB.set('profiles',np,true);showToast&&showToast(isApproved?'Perfil pendiente: '+p.name:'✓ Perfil aprobado: '+p.name);},style:{padding:'4px 9px',borderRadius:6,border:'none',background:p.status==='approved'?'rgba(160,124,40,.12)':'rgba(31,107,94,.12)',color:p.status==='approved'?'#a07c28':'#1f6b5e',fontSize:11,cursor:'pointer'}},p.status==='approved'?'↺ Pendiente':'✓ Aprobar'),
+                  !p.isDemo&&React.createElement('button',{onClick:()=>onApprove(p.id),style:{padding:'4px 9px',borderRadius:6,border:'none',background:p.status==='approved'?'rgba(160,124,40,.12)':'rgba(31,107,94,.12)',color:p.status==='approved'?'#a07c28':'#1f6b5e',fontSize:11,cursor:'pointer'}},p.status==='approved'?'↺ Pendiente':'✓ Aprobar'),
                   /* Block/Unblock */
-                  React.createElement('button',{onClick:()=>{const np=profiles.map(x=>x.id===p.id?{...x,blocked:!x.blocked,status:x.blocked?'pending':'blocked'}:x);setProfiles(np);},style:{padding:'4px 9px',borderRadius:6,border:'none',background:p.blocked?'rgba(31,107,94,.12)':'rgba(192,57,43,.08)',color:p.blocked?'#1f6b5e':'#c0392b',fontSize:11,cursor:'pointer'}},p.blocked?'Desbloquear':'Bloquear'),
+                  React.createElement('button',{onClick:()=>onBlock(p.id),style:{padding:'4px 9px',borderRadius:6,border:'none',background:p.blocked?'rgba(31,107,94,.12)':'rgba(192,57,43,.08)',color:p.blocked?'#1f6b5e':'#c0392b',fontSize:11,cursor:'pointer'}},p.blocked?'Desbloquear':'Bloquear'),
                   /* Verify toggle */
                   React.createElement('button',{onClick:()=>onVerify(p.id),style:{padding:'4px 9px',borderRadius:6,border:'none',background:'rgba(94,61,138,.1)',color:'#5e3d8a',fontSize:11,cursor:'pointer'}},p.verified?'Desverificar':'Verificar'),
                   /* Delete */
@@ -2342,6 +2342,42 @@ function App(){
     if(selProf&&selProf.id===u.id)setSelProf(u);
   };
 
+  const onBlock=async(id)=>{
+    const np=profiles.map(p=>p.id===id?{...p,blocked:!p.blocked,status:p.blocked?'pending':'blocked'}:p);
+    setProfiles(np);
+    try{await DB.set('profiles',np,true);}catch(e){}
+    const updated=np.find(p=>p.id===id);
+    showToast(updated?.blocked?'Perfil bloqueado: '+updated.name:'Perfil desbloqueado: '+updated.name);
+  };
+  const onDeleteDemos=async()=>{
+    if(!window.confirm('¿Eliminar todos los perfiles y publicaciones de demostración? Esta acción no se puede deshacer.'))return;
+    const newP=profiles.filter(p=>!p.isDemo);
+    const newPosts=posts.filter(p=>!p.isDemo);
+    setProfiles(newP);setPosts(newPosts);
+    try{await DB.set('profiles',newP,true);await DB.set('posts',newPosts,true);}catch(e){}
+    showToast('Perfiles demo eliminados');
+  };
+  const onApprove=async(id)=>{
+    const np=profiles.map(p=>p.id===id?{...p,status:p.status==='approved'?'pending':'approved',approvedAt:p.status==='approved'?null:fmtDate()}:p);
+    setProfiles(np);
+    try{await DB.set('profiles',np,true);}catch(e){console.warn('Save error',e);}
+    const updated=np.find(p=>p.id===id);
+    showToast(updated?.status==='approved'?'✓ Perfil aprobado: '+updated.name:'Perfil pendiente: '+(updated?.name||''));
+  };
+  const onVerify=async(id)=>{
+    const np=profiles.map(p=>p.id===id?{...p,verified:!p.verified}:p);
+    setProfiles(np);
+    try{await DB.set('profiles',np,true);}catch(e){console.warn('Save error',e);}
+    const updated=np.find(p=>p.id===id);
+    showToast(updated?.verified?'✓ Perfil verificado: '+updated.name:'Verificación removida');
+  };
+  const onDelete=async(id)=>{
+    if(!window.confirm('¿Eliminar permanentemente este perfil? Esta acción no se puede deshacer.'))return;
+    const np=profiles.filter(p=>p.id!==id);
+    setProfiles(np);
+    try{await DB.set('profiles',np,true);}catch(e){console.warn('Save error',e);}
+    showToast('Perfil eliminado');
+  };
   const onLogin=u=>{setCurrentUser(u);DB.get(u.role==='admin'?'notifs:admin':'notifs:'+u.id).then(n=>setNotifs(n||[])).catch(()=>{});};
   const onLogout=async()=>{await DB.del('session');setCurrentUser(null);setNotifs([]);showToast('Sesión cerrada');};
   const onAuthClick=mode=>{setAuthMode(mode);setShowAuth(true);};
@@ -2366,8 +2402,9 @@ function App(){
       view==='create'&&React.createElement(CreatePage,{go,onAdd:addProfile,showToast,currentUser,onAuthClick,profiles}),
       view==='chat'&&React.createElement(ChatPage,{profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,go}),
       view==='terms'&&React.createElement(TermsPage,{go}),
-      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:async id=>{const np=profiles.map(p=>p.id===id?{...p,verified:!p.verified}:p);setProfiles(np);await DB.set('profiles',np,true);showToast(np.find(p=>p.id===id)?.verified?'✓ Perfil verificado':'Verificación removida');},
-      onDelete:async id=>{const np=profiles.filter(p=>p.id!==id);setProfiles(np);await DB.set('profiles',np,true);}
+      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onApprove,onBlock,onDeleteDemos,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:onVerify,
+      onDelete:onDelete,
+      onApprove:onApprove
       }),
       React.createElement(BottomNav,{view,go,onReturnHome:returnHome,currentUser}),
       showAuth&&React.createElement(AuthModal,{mode:authMode,onClose:()=>setShowAuth(false),onLogin,users,setUsers,showToast,onAfterRegister:(u)=>{if(authMode==='register'){go('create');}}}),
