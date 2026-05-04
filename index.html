@@ -238,28 +238,61 @@ select option{background:#ffffff;}
 @media(max-width:768px){
   .map-filter-panel{
     display:flex!important;
-    position:fixed;
-    left:0;top:0;bottom:0;
-    z-index:600;
-    width:min(300px,85vw)!important;
-    transform:translateX(-100%);
+    position:fixed!important;
+    left:0!important;
+    top:0!important;
+    bottom:0!important;
+    z-index:9000!important;
+    width:min(320px,88vw)!important;
+    min-height:100vh!important;
+    transform:translateX(-110%)!important;
+    transition:transform .3s ease!important;
     box-shadow:none;
-    background:var(--bgc)!important;
-    overflow-y:auto;
+    background:#1a1720!important;
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    flex-direction:column!important;
+    border-right:1px solid #2a2535!important;
   }
   .map-filter-panel.open{
     transform:translateX(0)!important;
-    box-shadow:4px 0 32px rgba(0,0,0,.3)!important;
+    box-shadow:6px 0 40px rgba(0,0,0,.5)!important;
   }
-  .map-filter-panel.closed{transform:translateX(-110%)!important;}
+  .map-filter-panel.closed{
+    transform:translateX(-110%)!important;
+  }
   .map-filter-fab{display:flex!important;}
-  .map-filter-mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:599;backdrop-filter:blur(2px);}
+  .map-filter-mobile-overlay{
+    display:none;
+    position:fixed!important;
+    inset:0!important;
+    background:rgba(0,0,0,.6)!important;
+    z-index:8999!important;
+    backdrop-filter:blur(2px);
+  }
   .map-filter-mobile-overlay.visible{display:block!important;}
-  .map-filter-body{padding:16px;gap:14px;}
-  .map-filter-hdr{padding:16px;background:var(--bgc);}
-  .map-filter-results{padding:12px 16px;}
-  .mfb-chips{gap:6px;}
-  .mfb-chip{font-size:12px;padding:6px 12px;}
+  .map-filter-hdr{
+    padding:16px 18px!important;
+    background:#1a1720!important;
+    border-bottom:1px solid #2a2535!important;
+    flex-shrink:0!important;
+  }
+  .map-filter-body{
+    padding:16px 18px!important;
+    gap:16px!important;
+    flex:1!important;
+    overflow-y:auto!important;
+    background:#1a1720!important;
+  }
+  .map-filter-results{
+    padding:12px 18px!important;
+    background:#1a1720!important;
+    border-top:1px solid #2a2535!important;
+    flex-shrink:0!important;
+  }
+  .mfb-chips{gap:7px!important;}
+  .mfb-chip{font-size:12px!important;padding:7px 13px!important;}
+  .mfb-label{color:#9a8d82!important;}
 }
 .map-filter-panel.open{width:270px;}
 .map-filter-panel.closed{width:0;overflow:hidden;}
@@ -1486,8 +1519,11 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
         React.createElement(Ic,{n:'filter',size:16})
       )
     ),
-    /* Mobile overlay */
-    panelOpen&&isMob&&React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:598,backdropFilter:'blur(2px)'},onClick:()=>setPanelOpen(false)}),
+    /* Mobile overlay — z-index 8999 below panel (9000) */
+    panelOpen&&isMob&&React.createElement('div',{
+      className:'map-filter-mobile-overlay visible',
+      onClick:()=>setPanelOpen(false)
+    }),
     React.createElement('div',{className:'map-body',style:{position:'relative',marginTop:isMob?54:0}},
       /* FILTER PANEL */
       React.createElement('div',{className:'map-filter-panel '+(panelOpen?'open':'closed')},
@@ -1614,48 +1650,47 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
     await DB.set('session',newU);
     await DB.set('notifs:'+newU.id,[{id:'n0',text:'¡Bienvenido a NODO! Completa tu perfil cultural para aparecer en el directorio y el mapa.',time:'ahora',unread:true,type:'sistema'}]);
 
-    /* ── AUTO-CREATE PROFILE IN nodo/profiles IMMEDIATELY ON REGISTRATION ── */
-    /* This ensures the user appears in admin panel right away, before they fill CreatePage */
-    try{
-      const existingProfiles=await DB.get('profiles',true)||[];
-      const alreadyExists=existingProfiles.some(p=>p.userId===newU.id||p.email===newU.email);
-      if(!alreadyExists){
-        const autoProfile={
-          id:'auto_'+newU.id,
-          userId:newU.id,
-          name:newU.name,
-          cat:newU.cat||cat||'artista',
-          cats:newU.cat?[newU.cat]:[cat||'artista'],
-          email:newU.email,
-          phone:newU.phone||'',
-          bio:'',
-          sobre:'',
-          tags:[],
-          muni:'zac',
-          cp:'',
-          photo:null,
-          portfolio:[],
-          status:'pending',
-          approvedAt:null,
-          verified:false,
-          isDemo:false,
-          isAutoProfile:true,/* flag: user hasn't completed CreatePage yet */
-          createdAt:fmtDate(),
-          joinedAt:fmtDate(),
-          conns:0,views:0,rating:0,
-          cg:['#1a1720','#09080a'],
-          likedBy:[],userRatings:{},
-        };
-        const newProfiles=[autoProfile,...existingProfiles];
-        await DB.set('profiles',newProfiles,true);
+    /* ── AUTO-CREATE PROFILE — ATOMIC TRANSACTION ── */
+    if(_fbReady&&_db){
+      try{
+        const profRef=_db.collection('nodo').doc('profiles');
+        await _db.runTransaction(async tx=>{
+          const snap=await tx.get(profRef);
+          const existing=snap.exists?(snap.data().v||[]):[];
+          /* Only add if not already there */
+          if(existing.some(p=>p.userId===newU.id||p.email===newU.email))return;
+          const autoProfile={
+            id:'reg_'+newU.id,userId:newU.id,
+            name:newU.name,cat:newU.cat||cat||'artista',cats:[newU.cat||cat||'artista'],
+            email:newU.email,phone:newU.phone||'',bio:'',sobre:'',tags:[],
+            muni:'zac',cp:'',photo:null,portfolio:[],convocatorias:[],proyectos:[],
+            status:'pending',approvedAt:null,verified:false,isDemo:false,isAutoProfile:true,
+            createdAt:fmtDate(),joinedAt:fmtDate(),
+            conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{},
+          };
+          tx.set(profRef,{v:[autoProfile,...existing],ts:Date.now()});
+        });
+        console.log('✓ Perfil creado en Firebase para',newU.name);
         /* Notify admin */
-        const adminNotif={id:'nadmin_'+Date.now(),text:'🆕 Nuevo registro: '+newU.name+' — necesita completar perfil',time:'ahora',unread:true,type:'nuevo_registro',profileId:autoProfile.id};
-        const existingAdminNotifs=await DB.get('notifs:admin')||[];
-        await DB.set('notifs:admin',[adminNotif,...existingAdminNotifs].slice(0,100));
-        /* Email notification */
-        notifyAdmin('🆕 Nuevo usuario registrado: '+newU.name,'Nombre: '+newU.name+'\nCorreo: '+newU.email+'\nTeléfono: '+(newU.phone||'—')+'\nFecha: '+fmtDate()+'\n\nEl usuario necesita completar su perfil. Aparecerá en el panel admin con estado "Pendiente".\n\nnodoart.mx');
+        try{
+          const notifRef=_db.collection('nodo').doc('notifs:admin');
+          const ns=await notifRef.get();
+          const prev=ns.exists?(ns.data().v||[]):[];
+          await notifRef.set({v:[{id:'n'+Date.now(),text:'🆕 '+newU.name+' se registró',time:fmtDate(),unread:true},...prev].slice(0,50),ts:Date.now()});
+        }catch(_){}
+        notifyAdmin('🆕 Nuevo registro: '+newU.name,'Nombre: '+newU.name+'\nCorreo: '+newU.email+'\nTeléfono: '+(newU.phone||'—')+'\nFecha: '+fmtDate()+'\n\nnodoart.mx');
+      }catch(txErr){
+        console.error('Transaction failed, using fallback:',txErr);
+        /* Fallback: direct write without read */
+        try{
+          const fb={id:'reg_'+newU.id,userId:newU.id,name:newU.name,cat:newU.cat||cat||'artista',cats:[newU.cat||cat||'artista'],email:newU.email,phone:newU.phone||'',bio:'',sobre:'',tags:[],muni:'zac',cp:'',photo:null,portfolio:[],convocatorias:[],proyectos:[],status:'pending',approvedAt:null,verified:false,isDemo:false,isAutoProfile:true,createdAt:fmtDate(),joinedAt:fmtDate(),conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{}};
+          /* Use arrayUnion-style: merge with existing via set+merge not supported on array,
+             so we store in a separate pending collection as safety net */
+          await _db.collection('nodo_pending').doc(newU.id).set(fb);
+          console.log('✓ Fallback: perfil guardado en nodo_pending');
+        }catch(fb2){console.error('Fallback also failed:',fb2);}
       }
-    }catch(profileErr){console.warn('Auto-profile creation failed:',profileErr);}
+    }
 
     onLogin(newU);showToast('¡Cuenta creada! Bienvenido, '+newU.name);onClose();
     if(onAfterRegister)onAfterRegister(newU);
@@ -1841,39 +1876,6 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
       React.createElement('div',{className:'hero-stats'},[{v:profiles.length,l:'Perfiles'},{v:MUNIS58.length,l:'Municipios'},{v:profiles.reduce((s,p)=>s+(p.conns||0),0),l:'Conexiones'},{v:profiles.reduce((s,p)=>s+(p.convocatorias||[]).length,0),l:'Convocatorias'}].map(s=>React.createElement('div',{key:s.l,className:'stat-item'},React.createElement('div',{className:'stat-num'},s.v),React.createElement('div',{className:'stat-lbl'},s.l))))
     ),
     React.createElement(HomeCarousel,{profiles,go,setProf}),
-    /* Lo último — photos, music, convocatorias */
-    React.createElement('div',{style:{maxWidth:1100,margin:'0 auto',padding:'22px 16px 0'}},
-      React.createElement('div',{className:'feed-header',style:{marginBottom:14}},
-        React.createElement('h2',{className:'section-title'},'Lo último en NODO ',React.createElement('em',{style:{fontStyle:'italic',color:'var(--amb)'}},'— fotos, música y más')),
-        React.createElement('button',{className:'link-btn',onClick:()=>go('dir')},'Ver todo →')
-      ),
-      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:28}},
-        allContent.slice(0,6).map((item,i)=>{
-          const c=catInfo(item.prof?.cat||'artista');
-          const isMusic=item.type==='music';
-          const isSpotify=isMusic&&item.url?.includes('spotify');
-          let embedUrl='';
-          if(isSpotify){const m=(item.url||'').match(/spotify\.com\/(track|artist|album|playlist)\/([a-zA-Z0-9]+)/);if(m)embedUrl='https://open.spotify.com/embed/'+m[1]+'/'+m[2]+'?utm_source=generator&theme=0';}
-          else if(isMusic){embedUrl='https://w.soundcloud.com/player/?url='+encodeURIComponent(item.url||'')+'&color=%23f97316&auto_play=false&hide_related=true&show_comments=false&show_user=true';}
-          return React.createElement('div',{key:i,style:{borderRadius:14,overflow:'hidden',border:'1px solid var(--brd)',cursor:'pointer',transition:'all .2s',background:'var(--bgc)'},
-            onClick:()=>{if(item.prof){setProf(item.prof);go('profile');}},
-            onMouseOver:e=>{e.currentTarget.style.borderColor='var(--brdl)';e.currentTarget.style.transform='translateY(-2px)';},
-            onMouseOut:e=>{e.currentTarget.style.borderColor='var(--brd)';e.currentTarget.style.transform='none';}},
-            /* Visual */
-            isMusic&&embedUrl
-              ?React.createElement('div',{style:{height:120,overflow:'hidden'},onClick:e=>e.stopPropagation()},React.createElement('iframe',{src:embedUrl,width:'100%',height:120,frameBorder:'0',allow:'autoplay; clipboard-write; encrypted-media',loading:'lazy',style:{border:'none'}}))
-              :item.url
-                ?React.createElement('div',{style:{height:140,overflow:'hidden'}},React.createElement('img',{src:item.url,alt:'',style:{width:'100%',height:'100%',objectFit:'cover'}}))
-                :React.createElement('div',{style:{height:140,background:'linear-gradient(135deg,'+c.color+'22,'+c.color+'08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:40}},isMusic?'🎵':'🎨'),
-            /* Meta */
-            React.createElement('div',{style:{padding:'10px 12px'}},
-              React.createElement('div',{style:{fontSize:13,fontWeight:600,color:'var(--txt)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},item.prof?.name||''),
-              React.createElement('div',{style:{fontSize:11,color:'var(--txts)',marginTop:2}},item.type==='convocatoria'?'📢 Convocatoria':item.type==='music'?(isSpotify?'🎵 Spotify':'🎧 SoundCloud'):'📷 Portafolio')
-            )
-          );
-        })
-      )
-    ),
     React.createElement('div',{className:'home-wrap'},
       React.createElement('div',{className:'home-grid'},
         React.createElement('div',null,
@@ -2495,6 +2497,14 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
 };
 
 /* ── ADMIN PAGE ── */
+/* ── AUTO-SYNC component: runs syncFirebaseUsers once when profiles tab opens ── */
+const AutoSync=({syncFirebaseUsers,profiles})=>{
+  const ran=React.useRef(false);
+  useEffect(()=>{
+    if(!ran.current){ran.current=true;syncFirebaseUsers();}
+  },[]);
+  return null;
+};
 const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onApprove,onBlock,onDeleteDemos,forceReloadProfiles,syncFirebaseUsers,onSendAnnouncement,showToast})=>{
   const [adminTab,setAdminTab]=useState('dashboard');
   const [emailSubject,setEmailSubject]=useState('');const [emailBody,setEmailBody]=useState('');const [emailType,setEmailType]=useState('convocatoria');const [recipients,setRecipients]=useState([]);const [recInput,setRecInput]=useState('');const [sendAll,setSendAll]=useState(false);const [sending,setSending]=useState(false);
@@ -2606,7 +2616,10 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
         ),
         React.createElement('button',{onClick:sendEmail,disabled:!emailSubject.trim()||!emailBody.trim()||(!sendAll&&recipients.length===0)||sending,className:'btn-primary',style:{opacity:(!emailSubject.trim()||!emailBody.trim()||(!sendAll&&recipients.length===0)||sending)?.5:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8}},sending?React.createElement(React.Fragment,null,React.createElement('span',{className:'spin'}),' Enviando...'):React.createElement(React.Fragment,null,React.createElement(Ic,{n:'send',size:15,color:'#fff'}),' Enviar correo'))
       ),
-      adminTab==='profiles'&&React.createElement('div',null,
+      adminTab==='profiles'&&React.createElement(React.Fragment,null,
+        /* Auto-sync on tab open */
+        React.createElement(AutoSync,{syncFirebaseUsers,profiles}),
+      React.createElement('div',null,
         /* Pending approval banner */
         profiles.filter(p=>p.status==='pending'&&!p.isDemo).length>0&&React.createElement('div',{style:{background:'rgba(160,100,20,.08)',border:'1px solid rgba(160,100,20,.25)',borderRadius:12,padding:'12px 18px',marginBottom:18,display:'flex',alignItems:'center',gap:10}},
           React.createElement('div',{style:{fontSize:20}},'🔔'),
@@ -2665,6 +2678,7 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
             )))
           )
         )
+      )
       ),
       /* ══════════════════════════════
          TAB: BIENVENIDAS EN CANVA
@@ -2885,55 +2899,77 @@ function App(){
   },[_fbReady]);
 
   /* Force reload profiles from Firestore */
-  /* ── SYNC: Import users from Firebase 'users' collection that have no profile ── */
+  /* ── SYNC: Read users from Firebase and create missing profiles ── */
   const syncFirebaseUsers=async()=>{
-    if(!_fbReady)return showToast('Firebase no disponible');
-    showToast('⏳ Sincronizando usuarios de Firebase...');
+    if(!_fbReady||!_db){showToast('Firebase no disponible');return;}
+    showToast('⏳ Buscando usuarios en Firebase...');
+    let added=0;
     try{
-      /* Load all users from Firestore users collection */
-      const usersSnap=await _db.collection('users').get();
-      const fbUsers=usersSnap.docs.map(d=>({id:d.id,...d.data()}));
-      /* Load current profiles */
-      const profSnap=await _db.collection('nodo').doc('profiles').get();
+      /* Step 1: Load current profiles using transaction */
+      const profRef=_db.collection('nodo').doc('profiles');
+      const profSnap=await profRef.get();
       const currentProfiles=profSnap.exists?(profSnap.data().v||[]):[];
-      /* Find users without a profile */
-      let added=0;
-      const newProfiles=[...currentProfiles];
-      for(const u of fbUsers){
-        if(!u.name)continue;/* skip incomplete */
-        const hasProfile=currentProfiles.some(p=>p.userId===u.id||p.email===u.email);
-        if(!hasProfile){
-          newProfiles.unshift({
-            id:'sync_'+u.id,
-            userId:u.id,
-            name:u.name||u.displayName||'Usuario',
-            cat:u.cat||'artista',
-            cats:u.cats||[u.cat||'artista'],
-            email:u.email||'',
-            phone:u.phone||'',
-            bio:'',sobre:'',tags:[],
-            muni:u.muni||'zac',cp:'',
-            photo:u.photo||null,portfolio:[],
-            status:'pending',approvedAt:null,verified:false,
-            isDemo:false,isAutoProfile:true,
-            createdAt:u.joinedAt||fmtDate(),joinedAt:u.joinedAt||fmtDate(),
-            conns:0,views:0,rating:0,
-            cg:['#1a1720','#09080a'],
-            likedBy:[],userRatings:{},
-          });
-          added++;
+      let newProfiles=[...currentProfiles];
+
+      const makeProfile=(u)=>({
+        id:'sync_'+(u.id||u.uid||Date.now()),
+        userId:u.id||u.uid||'',
+        name:u.name||u.displayName||u.email?.split('@')[0]||'Usuario',
+        cat:u.cat||'artista',cats:u.cats||[u.cat||'artista'],
+        email:u.email||'',phone:u.phone||'',
+        bio:'',sobre:'',tags:[],muni:u.muni||'zac',cp:'',
+        photo:u.photo||u.photoURL||null,portfolio:[],convocatorias:[],proyectos:[],
+        status:'pending',approvedAt:null,verified:false,isDemo:false,isAutoProfile:true,
+        createdAt:u.joinedAt||u.createdAt||fmtDate(),joinedAt:u.joinedAt||fmtDate(),
+        conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{},
+      });
+
+      const addIfMissing=(u)=>{
+        if(!u||(!(u.name||u.email)))return;
+        const id=u.id||u.uid||'';
+        const em=u.email||'';
+        const has=newProfiles.some(p=>
+          (id&&(p.userId===id||p.id==='sync_'+id||p.id==='reg_'+id))||
+          (em&&p.email===em)
+        );
+        if(!has){newProfiles.unshift(makeProfile(u));added++;}
+      };
+
+      /* Step 2: Read from users/{uid} collection */
+      try{
+        const usersSnap=await _db.collection('users').get();
+        usersSnap.docs.forEach(d=>addIfMissing({...d.data(),id:d.id}));
+        console.log('users collection:',usersSnap.size,'docs');
+      }catch(e1){console.warn('Could not read users collection:',e1.message);}
+
+      /* Step 3: Read from nodo_pending collection (fallback registrations) */
+      try{
+        const pendSnap=await _db.collection('nodo_pending').get();
+        pendSnap.docs.forEach(d=>addIfMissing({...d.data(),id:d.id}));
+        console.log('nodo_pending:',pendSnap.size,'docs');
+      }catch(e2){console.warn('Could not read nodo_pending:',e2.message);}
+
+      /* Step 4: Read nodo/users (app's own user list) */
+      try{
+        const nuSnap=await _db.collection('nodo').doc('users').get();
+        if(nuSnap.exists){
+          const arr=nuSnap.data().v||[];
+          arr.forEach(u=>addIfMissing(u));
+          console.log('nodo/users:',arr.length,'entries');
         }
-      }
+      }catch(e3){console.warn('Could not read nodo/users:',e3.message);}
+
+      /* Step 5: Save merged profiles if anything was added */
       if(added>0){
-        await _db.collection('nodo').doc('profiles').set({v:newProfiles,ts:Date.now()});
+        await profRef.set({v:newProfiles,ts:Date.now()});
         setProfiles(newProfiles);
-        showToast('✓ '+added+' usuario(s) importado(s) desde Firebase');
+        showToast('✅ '+added+' registro(s) importado(s) correctamente');
       }else{
-        showToast('✓ Todos los usuarios ya tienen perfil');
+        showToast('✓ Todos los registros ya están sincronizados ('+currentProfiles.length+' perfiles)');
       }
-    }catch(e){
-      console.error('Sync error:',e);
-      showToast('Error al sincronizar: '+e.message);
+    }catch(mainErr){
+      console.error('Sync main error:',mainErr);
+      showToast('⚠ Error: '+mainErr.message+' — revisa la consola');
     }
   };
   const forceReloadProfiles=async()=>{
