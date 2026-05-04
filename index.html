@@ -2,8 +2,16 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>NODO — Red Cultural de Zacatecas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>NODO ART — Red Cultural de Zacatecas</title>
+<meta name="description" content="La primera red cultural de los 58 municipios de Zacatecas. Directorio, mapa, chat y crowdfunding cultural."/>
+<meta name="theme-color" content="#f97316"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="NODO ART"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="https://via.placeholder.com/180x180/f97316/ffffff?text=N"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Firebase SDK -->
@@ -211,7 +219,17 @@ select option{background:#ffffff;}
 /* MAP */
 .map-view{padding-top:58px;height:100vh;display:flex;flex-direction:column;box-sizing:border-box;}
 .map-body{flex:1;display:flex;height:calc(100vh - 58px);position:relative;}
-.map-filter-panel{border-right:1px solid var(--brd);background:var(--bgc);overflow-y:auto;flex-shrink:0;transition:width .25s ease;display:flex;flex-direction:column;}
+.map-filter-panel{border-right:1px solid var(--brd);background:var(--bgc);overflow-y:auto;flex-shrink:0;transition:width .25s ease,transform .3s ease;display:flex;flex-direction:column;}
+.map-filter-fab{display:none;position:absolute;bottom:90px;left:16px;z-index:500;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--orange),var(--terra));border:none;color:#fff;font-size:20px;box-shadow:0 4px 16px rgba(249,115,22,.4);cursor:pointer;align-items:center;justify-content:center;}
+.map-filter-mobile-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:498;backdrop-filter:blur(3px);}
+@media(max-width:768px){
+  .map-filter-panel{display:flex!important;position:absolute;left:0;top:0;bottom:0;z-index:499;width:290px!important;transform:translateX(-100%);box-shadow:none;}
+  .map-filter-panel.open{transform:translateX(0)!important;box-shadow:4px 0 24px rgba(0,0,0,.2);}
+  .map-filter-panel.closed{transform:translateX(-100%)!important;}
+  .map-filter-fab{display:flex!important;}
+  .map-filter-mobile-overlay{display:block;}
+  .map-filter-mobile-overlay.visible{display:block!important;}
+}
 .map-filter-panel.open{width:270px;}
 .map-filter-panel.closed{width:0;overflow:hidden;}
 .map-filter-hdr{padding:12px 14px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
@@ -450,6 +468,7 @@ tr:last-child td{border-bottom:none;}
 </head>
 <body>
 <div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script>
@@ -516,6 +535,26 @@ async function uploadPhoto(base64,path){
 
 /* ── CONSTANTS ── */
 const ADMIN_EMAIL='4921449205',ADMIN_PASS='4921449205';
+/* ── ADMIN NOTIFICATIONS — EmailJS ── */
+const ADMIN_GMAIL='lared@nodoart.mx';
+const EMAILJS_SERVICE='service_nodoart';
+const EMAILJS_TEMPLATE='template_nodoart';
+const EMAILJS_PUBLIC_KEY='TU_PUBLIC_KEY_EMAILJS'; /* Reemplaza con tu key de emailjs.com */
+
+async function notifyAdmin(subject,body){
+  try{
+    if(typeof emailjs!=='undefined'&&!EMAILJS_PUBLIC_KEY.startsWith('TU_')){
+      emailjs.init(EMAILJS_PUBLIC_KEY);
+      await emailjs.send(EMAILJS_SERVICE,EMAILJS_TEMPLATE,{
+        to_email:ADMIN_GMAIL,
+        subject:'NODO ART — '+subject,
+        message:body,
+        admin_url:'https://nodoart.mx',
+      });
+      console.log('✉️ Notificación enviada a '+ADMIN_GMAIL);
+    }
+  }catch(e){console.warn('Email notify failed',e);}
+}
 const initials=n=>n.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
 const muniName=id=>{const m=MUNIS58.find(m=>m.id===id);return m?m.name:id;};
 const fmtDate=()=>new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
@@ -1101,10 +1140,11 @@ const HomeCarousel=({profiles,go,setProf})=>{
             /* Body */
             El('div',{className:'carousel-body'},
               El('div',{className:'carousel-type',style:{color:it.color}},it.label||''),
-              El('div',{className:'carousel-title'},it.title),
+              El('div',{className:'carousel-title'},it.profile?it.profile.name:it.title),
+              El('div',{style:{fontSize:13,color:'var(--txts)',margin:'4px 0 8px',lineHeight:1.5}},it.type==='perfil'?it.subtitle:(it.type==='foto'||it.type==='video')?it.title:it.subtitle||''),
               El('div',{className:'carousel-meta'},
                 El('div',{className:'carousel-cat-dot',style:{background:c.color}}),
-                El('span',null,it.subtitle||''),
+                El('span',null,it.profile?c.label:''),
                 it.profile&&El('span',{style:{color:c.color,fontSize:11}},muniName(it.profile.muni))
               ),
               it.type==='musica'&&it.link&&El('a',{href:it.link,target:'_blank',rel:'noopener noreferrer',onClick:e=>e.stopPropagation(),style:{display:'inline-flex',alignItems:'center',gap:6,marginTop:12,padding:'8px 16px',background:it.color,borderRadius:20,color:'#fff',fontSize:12,fontWeight:600,textDecoration:'none'}},
@@ -1143,7 +1183,7 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
   const [catFilter,setCatFilter]=useState('all');
   const [muniFilter,setMuniFilter]=useState('all');
   const [queryFilter,setQueryFilter]=useState('');
-  const [panelOpen,setPanelOpen]=useState(true);
+  const [panelOpen,setPanelOpen]=useState(window.innerWidth>768);
   const [zoom,setZoom]=useState(8);
 
   const filtered=useMemo(()=>profiles.filter(p=>{
@@ -1303,8 +1343,12 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
     return()=>{delete window.__nodo_openProfile;delete window.__nodo_openChat;delete window.__nodo_currentUser;};
   },[profiles,go,setProf]);
 
-  return React.createElement('div',{className:'map-view'},
-    React.createElement('div',{className:'map-body'},
+  return React.createElement('div',{className:'map-view',style:{position:'relative'}},
+    /* Mobile filter FAB */
+    React.createElement('button',{className:'map-filter-fab',onClick:()=>setPanelOpen(!panelOpen),title:'Filtros',style:{display:window.innerWidth<=768?'flex':'none'}},panelOpen?'✕':'⚙'),
+    /* Mobile overlay */
+    panelOpen&&window.innerWidth<=768&&React.createElement('div',{className:'map-filter-mobile-overlay visible',onClick:()=>setPanelOpen(false)}),
+    React.createElement('div',{className:'map-body',style:{position:'relative'}},
       /* FILTER PANEL */
       React.createElement('div',{className:'map-filter-panel '+(panelOpen?'open':'closed')},
         panelOpen&&React.createElement(React.Fragment,null,
@@ -2018,7 +2062,9 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
 /* ── CHAT PAGE ── */
 const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,go})=>{
   const myProfile=profiles&&profiles.find(pr=>pr.userId===currentUser?.id);
-  const isPending=myProfile&&myProfile.status==='pending';
+  /* Block chat ONLY if profile explicitly has status==='pending' (not approved yet by admin).
+     If no profile found, or status is approved/undefined, allow chat */
+  const isPending=myProfile&&(myProfile.status==='pending')&&!myProfile.approvedAt;
   if(!currentUser||currentUser.role==='visitor')return React.createElement('div',{className:'view'},React.createElement('div',{style:{padding:'80px 20px'}},React.createElement('div',{className:'access-denied'},React.createElement(Ic,{n:'msg',size:44,color:'var(--brd)'}),React.createElement('h2',null,'Chat solo para miembros'),React.createElement('p',null,'Regístrate para chatear con artistas, gestores y agentes de la red.'),React.createElement('button',{onClick:()=>onAuthClick('register'),style:{padding:'11px 24px',background:'linear-gradient(135deg,#c4611e,#8b2e18)',border:'none',borderRadius:10,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}},'Crear cuenta gratis'))));
   if(isPending)return React.createElement('div',{className:'view'},React.createElement('div',{style:{padding:'60px 20px'}},React.createElement('div',{className:'access-denied'},React.createElement('div',{style:{fontSize:40,marginBottom:10}},'⏳'),React.createElement('h2',null,'Perfil pendiente de aprobación'),React.createElement('p',null,'Tu perfil ya es visible en el directorio, pero el chat se habilitará una vez que el administrador apruebe tu cuenta. Normalmente toma menos de 24 horas.'),React.createElement('button',{onClick:()=>go('profile'),style:{padding:'10px 22px',background:'linear-gradient(135deg,#c4611e,#8b2e18)',border:'none',borderRadius:9,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}},'Ver mi perfil'))));
   const [convs,setConvs]=useState([]);
@@ -2032,16 +2078,27 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
   /* Build conversation ID — always sorted so both users get same ID */
   const convId=(uid1,uid2)=>[uid1,uid2].sort().join('_');
 
-  /* Load conversations for current user */
+  /* Load conversations for current user — real-time */
   useEffect(()=>{
     if(!currentUser||!_fbReady)return;
-    const unsub=_db.collection('chats')
-      .where('participants','array-contains',currentUser.id)
-      .orderBy('lastTime','desc')
-      .onSnapshot(snap=>{
-        const cs=snap.docs.map(d=>({id:d.id,...d.data()}));
-        setConvs(cs);
-      },()=>{});
+    let unsub=()=>{};
+    try{
+      unsub=_db.collection('chats')
+        .where('participants','array-contains',currentUser.id)
+        .orderBy('lastTime','desc')
+        .onSnapshot(snap=>{
+          const cs=snap.docs.map(d=>({id:d.id,...d.data()}));
+          setConvs(cs);
+        },err=>{
+          console.warn('Convs listener err:',err);
+          /* Fallback: load once without ordering */
+          _db.collection('chats')
+            .where('participants','array-contains',currentUser.id)
+            .get().then(snap=>{
+              setConvs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.lastTime||0)-(a.lastTime||0)));
+            }).catch(()=>{});
+        });
+    }catch(e){console.warn('Conv setup err',e);}
     return()=>unsub();
   },[currentUser]);
 
@@ -2058,11 +2115,32 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
   useEffect(()=>{
     if(unsubRef.current)unsubRef.current();
     if(!activeConv||!_fbReady)return;
-    const unsub=_db.collection('chats').doc(activeConv.id).collection('messages')
-      .orderBy('time','asc').limitToLast(100)
-      .onSnapshot(snap=>{
-        setMsgs(snap.docs.map(d=>({id:d.id,...d.data()})));
-      },()=>{});
+    let unsub=()=>{};
+    try{
+      unsub=_db.collection('chats').doc(activeConv.id).collection('messages')
+        .orderBy('time','asc').limitToLast(200)
+        .onSnapshot(snap=>{
+          const newMsgs=snap.docs.map(d=>({id:d.id,...d.data()}));
+          /* Notify if last message is from someone else */
+          if(newMsgs.length>0){
+            const last=newMsgs[newMsgs.length-1];
+            if(last.from&&last.from!==currentUser.id&&last.time&&last.time>Date.now()-5000){
+              window.sendLocalNotif&&window.sendLocalNotif(
+                'Nuevo mensaje en NODO ART',
+                (activeConv?.otherName||'Alguien')+': '+last.text.slice(0,80),
+                location.href
+              );
+            }
+          }
+          setMsgs(newMsgs);
+        },err=>{
+          console.warn('Messages listener err:',err);
+          /* Fallback: load once */
+          _db.collection('chats').doc(activeConv.id).collection('messages')
+            .orderBy('time','asc').limitToLast(200)
+            .get().then(snap=>setMsgs(snap.docs.map(d=>({id:d.id,...d.data()})))).catch(()=>{});
+        });
+    }catch(e){console.warn('Msg setup err',e);}
     unsubRef.current=unsub;
     return()=>unsub();
   },[activeConv]);
@@ -2089,8 +2167,21 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
     const msg={from:currentUser.id,text:text.trim(),time:Date.now(),timeStr:nowTime()};
     setText('');
     if(_fbReady){
-      await _db.collection('chats').doc(activeConv.id).collection('messages').add(msg);
-      await _db.collection('chats').doc(activeConv.id).update({lastMsg:msg.text,lastTime:msg.time});
+      try{
+        /* Ensure chat doc exists before adding message */
+        const chatDoc=await _db.collection('chats').doc(activeConv.id).get();
+        if(!chatDoc.exists){
+          await _db.collection('chats').doc(activeConv.id).set({
+            participants:[currentUser.id,activeConv.otherId],
+            lastMsg:msg.text,lastTime:msg.time,
+          });
+        }
+        await _db.collection('chats').doc(activeConv.id).collection('messages').add(msg);
+        await _db.collection('chats').doc(activeConv.id).update({lastMsg:msg.text,lastTime:msg.time});
+      }catch(e){
+        console.warn('Send error',e);
+        setMsgs(p=>[...p,{...msg,id:'m'+Date.now()}]);
+      }
     }else{
       setMsgs(p=>[...p,{...msg,id:'m'+Date.now()}]);
     }
@@ -2105,7 +2196,13 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
   const El=React.createElement;
   return El('div',{className:'chat-view'},
     El('div',{className:'conv-list'+(isMobile&&activeConv?' mh':'')},
-      El('div',{className:'conv-list-hdr'},El('h2',null,'Mensajes')),
+      El('div',{className:'conv-list-hdr'},
+        El('h2',null,'Mensajes'),
+        Notification&&Notification.permission!=='granted'&&El('button',{
+          onClick:()=>window.requestPushPermission&&window.requestPushPermission(currentUser?.id),
+          style:{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',border:'1px solid #f97316',borderRadius:20,background:'rgba(249,115,22,.06)',color:'#f97316',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}
+        },El('span',null,'🔔'),'Activar alertas')
+      ),
       convs.length===0&&El('div',{style:{padding:'24px',textAlign:'center',color:'var(--txtm)',fontSize:13,lineHeight:1.6}},'Sin conversaciones aún.',El('br',null),'Ve a un perfil y toca el botón "Mensaje".'),
       convs.map(c=>{const op=getOtherProfile(c);if(!op)return null;return El('div',{key:c.id,className:'conv-item'+(activeConv&&activeConv.id===c.id?' active':''),onClick:()=>setActiveConv({id:c.id,otherId:op.id,otherName:op.name,otherPhoto:op.photo,otherCat:op.cat||'artista'})},
         El(Av,{p:op,size:44}),
@@ -2309,6 +2406,20 @@ function App(){
   useEffect(()=>{if(loaded)DB.set('posts',posts,true);},[posts,loaded]);
   useEffect(()=>{if(loaded&&users.length>0)DB.set('users',users,true);},[users,loaded]);
 
+  /* ── Real-time Firestore listener — updates profiles instantly across all devices ── */
+  useEffect(()=>{
+    if(!_fbReady||!loaded)return;
+    const unsub=_db.collection('nodo').doc('profiles').onSnapshot(snap=>{
+      if(snap.exists){
+        const data=snap.data();
+        if(data&&data.v&&Array.isArray(data.v)){
+          setProfiles(data.v);
+        }
+      }
+    },err=>console.warn('Profiles listener error',err));
+    return()=>unsub();
+  },[loaded]);
+
   const go=v=>{setView(v);try{window.scrollTo({top:0,behavior:'smooth'});}catch{}};
   const showToast=msg=>setToast(msg);
 
@@ -2331,6 +2442,11 @@ function App(){
     await addNotifForAll({text:'Nuevo perfil en la red: '+p.name+' ('+catInfo(p.cat).label+')',type:p.cat,cat:p.cat});
     const adminNotif={id:'nadmin_'+Date.now(),text:'🆕 Nuevo perfil para aprobar: '+p.name+' ('+catInfo(p.cat).label+') — '+muniName(p.muni),time:'ahora',unread:true,type:'nuevo_perfil',profileId:p.id};
     try{const existing=await DB.get('notifs:admin')||[];await DB.set('notifs:admin',[adminNotif,...existing].slice(0,100));}catch{}
+    /* Send external notification to admin */
+    notifyAdmin(
+      '🆕 Nuevo usuario requiere aprobación',
+      'Nombre: '+p.name+'\nTipo: '+catInfo(p.cat).label+'\nMunicipio: '+muniName(p.muni)+'\nFecha: '+fmtDate()+'\n\nEntra al panel admin para aprobar o rechazar.'
+    );
     const newPost={id:'post'+Date.now(),pid:p.id,text:'¡Hola! Me acabo de unir a NODO. Soy '+p.name+', '+catInfo(p.cat).label.toLowerCase()+' en '+muniName(p.muni)+'.',likes:0,comments:0,shares:0,time:'ahora',type:'work'};
     setPosts(prev=>[newPost,...prev].slice(0,100));
   };
@@ -2414,6 +2530,110 @@ function App(){
   );
 }
 ReactDOM.createRoot(document.getElementById('app')).render(React.createElement(App));
+
+/* ── PWA: Register Service Worker ── */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', async()=>{
+    try{
+      const reg = await navigator.serviceWorker.register('sw.js', {scope:'./'});
+      console.log('SW registrado ✓', reg.scope);
+      window.__swReg = reg;
+    }catch(e){ console.warn('SW error:', e); }
+  });
+}
+
+/* ── PWA: Install prompt (A2HS) ── */
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  /* Show install banner after 3 seconds if not dismissed */
+  setTimeout(() => {
+    if(deferredPrompt && !localStorage.getItem('nodo_install_dismissed')){
+      showInstallBanner();
+    }
+  }, 3000);
+});
+
+function showInstallBanner(){
+  if(document.getElementById('nodo-install-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'nodo-install-banner';
+  banner.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;background:#fff;border:2px solid #f97316;border-radius:18px;padding:16px 18px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.15);display:flex;align-items:center;gap:12px;font-family:museo-sans,sans-serif;animation:fadeUp .3s ease;';
+  banner.innerHTML = `
+    <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#f97316,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <div style="width:12px;height:12px;border-radius:50%;background:#fff;"></div>
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-weight:700;font-size:14px;color:#111;">Instala NODO ART</div>
+      <div style="font-size:12px;color:#6b7280;margin-top:2px;">Accede sin internet y recibe notificaciones</div>
+    </div>
+    <button onclick="installApp()" style="padding:8px 16px;border:none;border-radius:10px;background:linear-gradient(135deg,#f97316,#dc2626);color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">Instalar</button>
+    <button onclick="dismissInstall()" style="padding:8px;border:none;background:none;color:#9ca3af;font-size:18px;cursor:pointer;line-height:1;">×</button>
+  `;
+  document.body.appendChild(banner);
+}
+
+window.installApp = async function(){
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const result = await deferredPrompt.userChoice;
+  if(result.outcome === 'accepted'){
+    console.log('NODO ART instalado ✓');
+    document.getElementById('nodo-install-banner')?.remove();
+  }
+  deferredPrompt = null;
+};
+
+window.dismissInstall = function(){
+  localStorage.setItem('nodo_install_dismissed','1');
+  document.getElementById('nodo-install-banner')?.remove();
+};
+
+window.addEventListener('appinstalled', ()=>{
+  console.log('App instalada');
+  document.getElementById('nodo-install-banner')?.remove();
+  deferredPrompt = null;
+});
+
+/* ── PUSH NOTIFICATIONS ── */
+window.requestPushPermission = async function(userId){
+  if(!('Notification' in window)){ alert('Tu navegador no soporta notificaciones.'); return false; }
+  if(!('serviceWorker' in navigator)){ return false; }
+  const perm = await Notification.requestPermission();
+  if(perm !== 'granted'){ return false; }
+  /* Store permission in Firebase so we know this user opted in */
+  if(_fbReady && userId){
+    try{
+      await _db.collection('users').doc(userId).update({pushEnabled:true,pushUpdatedAt:Date.now()});
+    }catch(e){}
+  }
+  /* Show local test notification */
+  const reg = window.__swReg || await navigator.serviceWorker.ready;
+  reg.showNotification('NODO ART 🔥', {
+    body: '¡Notificaciones activadas! Te avisaremos cuando alguien te escriba.',
+    icon: 'https://via.placeholder.com/192x192/f97316/ffffff?text=N',
+    badge: 'https://via.placeholder.com/72x72/f97316/ffffff?text=N',
+    vibrate: [200,100,200],
+    tag: 'nodo-welcome',
+  });
+  return true;
+};
+
+/* Send local notification when new chat message arrives (foreground) */
+window.sendLocalNotif = function(title, body, url){
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  /* Only notify if page is not visible */
+  if(!document.hidden) return;
+  navigator.serviceWorker.ready.then(reg => {
+    reg.showNotification(title, {
+      body, icon:'https://via.placeholder.com/192x192/f97316/ffffff?text=N',
+      badge:'https://via.placeholder.com/72x72/f97316/ffffff?text=N',
+      tag:'nodo-chat', renotify:true, vibrate:[200,100,200],
+      data:{url: url||location.href}
+    });
+  });
+};
 </script>
 </body>
 </html>
