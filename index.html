@@ -1384,7 +1384,7 @@ const Landing=({onSelect})=>{
 /* ── AUTH MODAL ── */
 const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister})=>{
   const [tab,setTab]=useState(mode||'login');
-  const [email,setEmail]=useState('');const [pass,setPass]=useState('');const [name,setName]=useState('');const [confirm,setConfirm]=useState('');const [cat,setCat]=useState('');const [err,setErr]=useState('');
+  const [email,setEmail]=useState('');const [pass,setPass]=useState('');const [name,setName]=useState('');const [confirm,setConfirm]=useState('');const [cat,setCat]=useState('');const [phone,setPhone]=useState('');const [err,setErr]=useState('');
   const doLogin=async()=>{
     setErr('');if(!email.trim()||!pass.trim()){setErr('Completa todos los campos.');return;}
     if(email.trim()===ADMIN_EMAIL&&pass===ADMIN_PASS){
