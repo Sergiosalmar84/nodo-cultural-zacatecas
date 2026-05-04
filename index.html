@@ -6,6 +6,19 @@
 <title>NODO ART — Red Cultural de Zacatecas</title>
 <meta name="description" content="La primera red cultural de los 58 municipios de Zacatecas. Directorio, mapa, chat y crowdfunding cultural."/>
 <meta name="theme-color" content="#f97316"/>
+<!-- Open Graph / Social sharing -->
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="NODO ART"/>
+<meta property="og:title" content="NODO ART — Red Cultural de Zacatecas"/>
+<meta property="og:description" content="La primera red cultural de los 58 municipios de Zacatecas. Conecta artistas, gestores, espacios y creadores."/>
+<meta property="og:image" content="https://nodoart.mx/og-image.png"/>
+<meta property="og:url" content="https://nodoart.mx"/>
+<meta property="og:locale" content="es_MX"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:site" content="@NodoArtMx"/>
+<meta name="twitter:title" content="NODO ART — Red Cultural de Zacatecas"/>
+<meta name="twitter:description" content="Directorio, mapa, chat y crowdfunding cultural. 58 municipios conectados."/>
+<meta name="twitter:image" content="https://nodoart.mx/og-image.png"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <meta name="apple-mobile-web-app-title" content="NODO ART"/>
@@ -1206,6 +1219,90 @@ const HomeCarousel=({profiles,go,setProf})=>{
   );
 };
 
+
+/* ── SHARE PROFILE MODAL ── */
+const ShareModal=({p,onClose})=>{
+  const [copied,setCopied]=useState(false);
+  const [copyText,setCopyText]=useState(false);
+  const url=`https://nodoart.mx#perfil/${p.id}`;
+  const cat=catInfo(p.cat);
+  const text=`🎨 Conoce a ${p.name} en NODO ART\n${cat.label} de ${muniName(p.muni)}, Zacatecas.\n\n${p.bio?p.bio.slice(0,120)+'...':''}\n\n👉 ${url}\n\n#NodoArt #CulturaZacatecas #${cat.label.replace(/[^a-zA-ZáéíóúÁÉÍÓÚ]/g,'')}`;
+  const shortText=`🔥 ${p.name} está en NODO ART — Red Cultural de Zacatecas. ¡Conócelo! 👉 ${url}`;
+
+  const copyLink=async()=>{
+    try{ await navigator.clipboard.writeText(url); setCopied(true); setTimeout(()=>setCopied(false),2000);}
+    catch(e){const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);setCopied(true);setTimeout(()=>setCopied(false),2000);}
+  };
+  const copyCaption=async()=>{
+    try{ await navigator.clipboard.writeText(text); setCopyText(true); setTimeout(()=>setCopyText(false),2000);}
+    catch(e){}
+  };
+  const shareNative=()=>{
+    if(navigator.share){
+      navigator.share({title:'NODO ART — '+p.name,text:shortText,url});
+    }
+  };
+  const openIG=()=>{ navigator.clipboard.writeText(text).then(()=>alert('Caption copiado. Ahora pega en Instagram al crear tu historia o post.')); };
+  const El=React.createElement;
+  return El('div',{className:'modal-overlay',onClick:e=>{if(e.target===e.currentTarget)onClose();}},
+    El('div',{className:'modal-card fadein',style:{maxWidth:440}},
+      El('button',{className:'modal-close',onClick:onClose},El(Ic,{n:'x',size:15,color:'var(--txts)'})),
+      /* Profile mini card */
+      El('div',{style:{background:`linear-gradient(135deg,${p.cg?.[0]||cat.color+'33'},${p.cg?.[1]||'#09080a'})`,borderRadius:16,padding:'20px 20px 16px',marginBottom:18,position:'relative',overflow:'hidden'}},
+        El('div',{style:{position:'absolute',inset:0,backgroundImage:'radial-gradient(circle,rgba(255,255,255,.06) 1px,transparent 1px)',backgroundSize:'20px 20px'}}),
+        El('div',{style:{position:'relative',display:'flex',alignItems:'center',gap:14}},
+          El(Av,{p,size:56}),
+          El('div',null,
+            El('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:18,fontWeight:700,color:'#fff',lineHeight:1.2}},p.name),
+            El('div',{style:{marginTop:5,display:'flex',gap:6}},El(Badge,{cat:p.cat,sm:true})),
+            El('div',{style:{fontSize:12,color:'rgba(255,255,255,.6)',marginTop:4}},muniName(p.muni)+', Zacatecas')
+          )
+        ),
+        El('div',{style:{position:'relative',marginTop:12,fontSize:13,color:'rgba(255,255,255,.7)',lineHeight:1.5,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}},p.bio)
+      ),
+      /* Share URL */
+      El('div',{style:{marginBottom:16}},
+        El('label',{className:'field-label'},'Enlace del perfil'),
+        El('div',{style:{display:'flex',gap:8}},
+          El('div',{style:{flex:1,padding:'10px 13px',background:'var(--bg)',border:'1px solid var(--brd)',borderRadius:9,fontSize:12,color:'var(--txts)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},url),
+          El('button',{onClick:copyLink,style:{padding:'10px 14px',borderRadius:9,border:'none',background:copied?'rgba(22,163,74,.15)':'var(--bgch)',color:copied?'#16a34a':'var(--txts)',fontSize:13,fontWeight:600,cursor:'pointer',flexShrink:0,transition:'all .2s'}},copied?'✓ Copiado':'Copiar')
+        )
+      ),
+      /* Caption */
+      El('div',{style:{marginBottom:18}},
+        El('label',{className:'field-label'},'Caption listo para redes'),
+        El('div',{style:{background:'var(--bg)',border:'1px solid var(--brd)',borderRadius:9,padding:'10px 13px',fontSize:12,color:'var(--txts)',lineHeight:1.7,maxHeight:120,overflowY:'auto',whiteSpace:'pre-wrap'}},text),
+        El('button',{onClick:copyCaption,style:{marginTop:7,width:'100%',padding:'8px',border:'1px solid var(--brd)',borderRadius:8,background:'transparent',color:copyText?'#16a34a':'var(--txts)',fontSize:13,cursor:'pointer',transition:'all .2s'}},copyText?'✓ Caption copiado':'Copiar caption completo')
+      ),
+      /* Share buttons */
+      El('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}},
+        [
+          {label:'WhatsApp',emoji:'💬',color:'#25D366',bg:'rgba(37,211,102,.08)',href:`https://wa.me/?text=${encodeURIComponent(text)}`},
+          {label:'Facebook',emoji:'📘',color:'#1877F2',bg:'rgba(24,119,242,.08)',href:`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(shortText)}`},
+          {label:'Twitter / X',emoji:'🐦',color:'#000',bg:'rgba(0,0,0,.06)',href:`https://twitter.com/intent/tweet?text=${encodeURIComponent(shortText)}`},
+          {label:'Telegram',emoji:'✈️',color:'#229ED9',bg:'rgba(34,158,217,.08)',href:`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(shortText)}`},
+        ].map(({label,emoji,color,bg,href})=>
+          El('a',{key:label,href,target:'_blank',rel:'noopener noreferrer',style:{display:'flex',alignItems:'center',gap:8,padding:'10px 14px',borderRadius:10,border:`1px solid ${color}33`,background:bg,textDecoration:'none',transition:'all .2s'},
+            onMouseOver:e=>{e.currentTarget.style.transform='translateY(-2px)';},
+            onMouseOut:e=>{e.currentTarget.style.transform='none';}},
+            El('span',{style:{fontSize:18}},emoji),
+            El('span',{style:{fontSize:13,fontWeight:600,color:'var(--txt)'}},label)
+          )
+        )
+      ),
+      /* Native share on mobile */
+      navigator.share&&El('button',{onClick:shareNative,style:{width:'100%',padding:'12px',border:'none',borderRadius:11,background:'linear-gradient(135deg,var(--orange),var(--terra))',color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',marginTop:4}},
+        '📤 Compartir con la app de mi teléfono'
+      ),
+      /* Instagram tip */
+      El('div',{style:{marginTop:12,padding:'10px 13px',background:'rgba(249,115,22,.05)',border:'1px solid rgba(249,115,22,.15)',borderRadius:9,fontSize:12,color:'var(--txts)',lineHeight:1.6}},
+        El('strong',{style:{color:'var(--amb)'}}),'📸 Para Instagram: ',
+        'Copia el caption, ve a tu perfil de NODO ART en IG, crea un post o historia, pega el caption y agrega la foto del artista desde su portafolio.'
+      )
+    )
+  );
+};
+
 /* ── MAP PAGE — Leaflet + OpenStreetMap (free, no API key) ── */
 const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
   const mapRef=useRef(null);
@@ -1834,7 +1931,7 @@ const DirPage=({profiles,go,setProf})=>{
 };
 /* ── PROFILE PAGE ── */
 const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNotifForAll,setProf,onStartChat})=>{
-  const [tab,setTab]=useState('about');const [following,setFollowing]=useState(false);const [showEdit,setShowEdit]=useState(false);
+  const [tab,setTab]=useState('about');const [following,setFollowing]=useState(false);const [showEdit,setShowEdit]=useState(false);const [showShare,setShowShare]=useState(false);
   const [newVideo,setNewVideo]=useState('');const [convTitle,setConvTitle]=useState('');const [convDesc,setConvDesc]=useState('');const [convImg,setConvImg]=useState(null);
   const photoRef=useRef();const convImgRef=useRef();
   if(!p)return null;
@@ -1878,6 +1975,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
           React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',marginTop:8,flexWrap:'wrap'}},React.createElement(Badge,{cat:p.cat}),React.createElement('span',{style:{color:'var(--txts)',fontSize:13}},muniName(p.muni),', Zacatecas'),p.cp&&React.createElement('span',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},'CP '+p.cp))
         ),
         React.createElement('div',{className:'profile-actions'},
+          showShare&&React.createElement(ShareModal,{p,onClose:()=>setShowShare(false)}),
           isOwn?React.createElement('button',{className:'btn-secondary',onClick:()=>setShowEdit(true)},React.createElement(Ic,{n:'edit',size:14}),'Editar')
           :React.createElement(React.Fragment,null,
               currentUser&&currentUser.role!=='visitor'&&React.createElement('button',{className:'btn-secondary',onClick:()=>{if(onStartChat){onStartChat(p.id);go('chat');}}},React.createElement(Ic,{n:'msg',size:14}),'Mensaje'),
@@ -2502,6 +2600,45 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
                     )
                   ))
               )
+        ),
+        /* ══ ANTORCHA TEMPLATES ══ */
+        React.createElement('div',{style:{marginTop:24,marginBottom:24}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:14}},
+            React.createElement('div',{style:{fontSize:22}},'🔥'),
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},'Plantillas de Antorcha — Crowdfunding'),
+              React.createElement('div',{style:{fontSize:12,color:'var(--txts)'}},'12 plantillas para difundir proyectos de crowdfunding en redes sociales')
+            )
+          ),
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}},
+            [
+              {name:'Instagram — Antorcha dramática',url:'https://www.canva.com/d/l5LtfIxPP-Xsk0X',thumb:'https://design.canva.ai/U9DgAMaXeVkUpXp',fmt:'Instagram 1080×1080'},
+              {name:'Instagram — Antorcha fuego',url:'https://www.canva.com/d/GuXEQGrLqXYBO7L',thumb:'https://design.canva.ai/xCg46DgKatWEFPD',fmt:'Instagram 1080×1080'},
+              {name:'Instagram — Antorcha artística',url:'https://www.canva.com/d/3uu7_1U4emwl-72',thumb:'https://design.canva.ai/61NR0yoNnOSRcw1',fmt:'Instagram 1080×1080'},
+              {name:'Instagram — Antorcha emocional',url:'https://www.canva.com/d/FoJu3p7Sy3zWuYn',thumb:'https://design.canva.ai/5zBOWUzBR_z2Xjn',fmt:'Instagram 1080×1080'},
+              {name:'Story/TikTok — Antorcha vertical 1',url:'https://www.canva.com/d/ZfvdUwj52TS4BDp',thumb:'https://design.canva.ai/dO81o3rPzcpDGcz',fmt:'Story 1080×1920'},
+              {name:'Story/TikTok — Antorcha vertical 2',url:'https://www.canva.com/d/o7_LKpMd2Lapqgb',thumb:'https://design.canva.ai/10_sbj2s5FzfrLp',fmt:'Story 1080×1920'},
+              {name:'Story/TikTok — Antorcha llama',url:'https://www.canva.com/d/sSbJj54qc5BSBFp',thumb:'https://design.canva.ai/OqHHfEYaE98GOuA',fmt:'Story 1080×1920'},
+              {name:'Story/TikTok — Antorcha bold',url:'https://www.canva.com/d/UToR5ezP2TCFda_',thumb:'https://design.canva.ai/xWgV7EcwLKpc6dh',fmt:'Story 1080×1920'},
+              {name:'Facebook — Campaña artista',url:'https://www.canva.com/d/LOuVRHW2GfHbI-m',thumb:'https://design.canva.ai/2pLtdgUnigpTDJV',fmt:'Facebook 1200×630'},
+              {name:'Facebook — Proyecto cultural',url:'https://www.canva.com/d/wXLkj0466PCwR9c',thumb:'https://design.canva.ai/rzxIZLK2p_glG37',fmt:'Facebook 1200×630'},
+              {name:'Facebook — Apoya el arte',url:'https://www.canva.com/d/_-wwVULZKNGt0Wx',thumb:'https://design.canva.ai/2qwRdodDzd44Mp8',fmt:'Facebook 1200×630'},
+              {name:'Facebook — Chispa creativa',url:'https://www.canva.com/d/QR4m4lzuYRH-WyP',thumb:'https://design.canva.ai/XyeciJvp-XqwN2b',fmt:'Facebook 1200×630'},
+            ].map(({name,url,thumb,fmt})=>
+              React.createElement('a',{key:url,href:url,target:'_blank',rel:'noopener noreferrer',style:{display:'block',borderRadius:12,overflow:'hidden',border:'2px solid var(--brd)',textDecoration:'none',transition:'all .2s'},
+                onMouseOver:e=>{e.currentTarget.style.borderColor='#f97316';e.currentTarget.style.transform='translateY(-2px)';},
+                onMouseOut:e=>{e.currentTarget.style.borderColor='var(--brd)';e.currentTarget.style.transform='none';}},
+                React.createElement('div',{style:{position:'relative',paddingBottom:'75%',background:'#111',overflow:'hidden'}},
+                  React.createElement('img',{src:thumb,alt:name,style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover'},onError:e=>{e.target.style.display='none';}}),
+                  React.createElement('div',{style:{position:'absolute',top:6,right:6,background:'rgba(249,115,22,.85)',borderRadius:5,padding:'2px 7px',fontSize:9,color:'#fff',fontWeight:700}},fmt)
+                ),
+                React.createElement('div',{style:{padding:'8px 10px',background:'#fff'}},
+                  React.createElement('div',{style:{fontSize:11,fontWeight:600,color:'var(--text)',marginBottom:2}},name),
+                  React.createElement('div',{style:{fontSize:10,color:'#f97316'}},'✏️ Editar en Canva')
+                )
+              )
+            )
+          )
         ),
         /* How to use */
         React.createElement('div',{style:{marginTop:18,padding:'14px 18px',background:'rgba(249,115,22,.04)',border:'1px solid rgba(249,115,22,.15)',borderRadius:12,fontSize:13,color:'var(--txts)',lineHeight:1.7}},
