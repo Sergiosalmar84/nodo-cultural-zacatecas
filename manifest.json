@@ -1,0 +1,31 @@
+{
+  "name": "NODO ART — Red Cultural de Zacatecas",
+  "short_name": "NODO ART",
+  "description": "La red cultural de los 58 municipios de Zacatecas. Directorio, mapa, chat y crowdfunding cultural.",
+  "start_url": "/nodo-cultural-zacatecas/",
+  "scope": "/nodo-cultural-zacatecas/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
+  "lang": "es",
+  "categories": ["social", "entertainment", "lifestyle"],
+  "icons": [
+    { "src": "https://via.placeholder.com/72x72/f97316/ffffff?text=N", "sizes": "72x72", "type": "image/png", "purpose": "any" },
+    { "src": "https://via.placeholder.com/96x96/f97316/ffffff?text=N", "sizes": "96x96", "type": "image/png" },
+    { "src": "https://via.placeholder.com/128x128/f97316/ffffff?text=N", "sizes": "128x128", "type": "image/png" },
+    { "src": "https://via.placeholder.com/144x144/f97316/ffffff?text=N", "sizes": "144x144", "type": "image/png" },
+    { "src": "https://via.placeholder.com/152x152/f97316/ffffff?text=N", "sizes": "152x152", "type": "image/png" },
+    { "src": "https://via.placeholder.com/192x192/f97316/ffffff?text=N", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "https://via.placeholder.com/384x384/f97316/ffffff?text=N", "sizes": "384x384", "type": "image/png" },
+    { "src": "https://via.placeholder.com/512x512/f97316/ffffff?text=N", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "screenshots": [
+    { "src": "https://nodoart.mx/screenshot-home.png", "sizes": "1080x1920", "type": "image/png", "label": "Pantalla de inicio" }
+  ],
+  "shortcuts": [
+    { "name": "Mapa Cultural", "short_name": "Mapa", "url": "/nodo-cultural-zacatecas/#map", "description": "Ver el mapa cultural de Zacatecas" },
+    { "name": "Directorio", "short_name": "Directorio", "url": "/nodo-cultural-zacatecas/#dir", "description": "Buscar perfiles" },
+    { "name": "Mensajes", "short_name": "Chat", "url": "/nodo-cultural-zacatecas/#chat", "description": "Ver mis mensajes" }
+  ]
+}
