@@ -1855,17 +1855,23 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
     return items.sort((a,b)=>b.pct-a.pct).slice(0,6);
   },[profiles]);
   const allContent=useMemo(()=>{
+    /* Sort profiles newest first (prioritize recent registrations) */
+    const sorted=[...profiles].filter(p=>!p.isDemo).sort((a,b)=>(b.createdAt||b.joinedAt||'').localeCompare(a.createdAt||a.joinedAt||''));
     const items=[];
+    /* First: add NEW profiles (no portfolio yet) as profile cards */
+    sorted.slice(0,8).forEach(p=>{
+      items.push({type:'perfil',url:p.photo||null,profileName:p.name,profileCat:p.cat,pid:p.id,prof:p,title:p.name});
+    });
+    /* Then: add content from ALL profiles */
     profiles.forEach(p=>{
-      /* Photos and videos from portfolio */
       (p.portfolio||[]).forEach(item=>items.push({...item,profileName:p.name,profileCat:p.cat,pid:p.id,prof:p}));
-      /* Convocatorias */
       (p.convocatorias||[]).forEach(item=>items.push({...item,type:'convocatoria',profileName:p.name,profileCat:p.cat,pid:p.id,prof:p}));
-      /* Music embeds — Spotify / SoundCloud */
       if(p.musicUrl){items.push({type:'music',url:p.musicUrl,profileName:p.name,profileCat:p.cat,pid:p.id,prof:p});}
     });
-    /* Sort by most recent, shuffle slightly for variety */
-    return items.sort(()=>Math.random()-.5).slice(0,16);
+    /* Shuffle but keep newest profiles near front */
+    const top=items.slice(0,8);
+    const rest=items.slice(8).sort(()=>Math.random()-.5);
+    return [...top,...rest].slice(0,20);
   },[profiles]);
   return React.createElement('div',{className:'view'},
     !currentUser&&React.createElement(VisitorBanner,{onAuthClick}),
@@ -1976,8 +1982,12 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
                         );
                   })()
                 :item.url
-                  ?React.createElement('img',{src:item.url,style:{width:'100%',height:'100%',objectFit:'cover'}})
-                  :React.createElement('div',{style:{width:'100%',height:'100%',background:'linear-gradient(135deg,'+catInfo(item.prof.cat).color+'33,'+catInfo(item.prof.cat).color+'11)',display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement(Ic,{n:item.type==='video'?'video':item.type==='convocatoria'?'bullhorn':'image',size:34,color:'rgba(255,255,255,.5)'})),
+                  ?React.createElement('img',{src:item.url,style:{width:'100%',height:'100%',objectFit:'cover'},onError:e=>{e.target.style.display='none';}})
+                  :item.type==='perfil'
+                    ?React.createElement('div',{style:{width:'100%',height:'100%',background:'linear-gradient(135deg,'+catInfo(item.prof?.cat||'artista').color+'55,'+catInfo(item.prof?.cat||'artista').color+'22)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:52,fontFamily:'museo-sans,sans-serif',fontWeight:900,color:catInfo(item.prof?.cat||'artista').color}},
+                        (item.profileName||'?')[0]?.toUpperCase()
+                      )
+                    :React.createElement('div',{style:{width:'100%',height:'100%',background:'linear-gradient(135deg,'+catInfo(item.prof?.cat||'artista').color+'33,'+catInfo(item.prof?.cat||'artista').color+'11)',display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement(Ic,{n:item.type==='video'?'video':item.type==='convocatoria'?'bullhorn':'image',size:34,color:'rgba(255,255,255,.5)'})),
               item.type==='video'&&React.createElement('div',{className:'video-badge'},React.createElement(Ic,{n:'video',size:10,color:'#fff'}),'Video')
             ),
             React.createElement('div',{className:'gallery-card-body'},
@@ -2509,7 +2519,7 @@ const AutoSync=({syncFirebaseUsers,profiles})=>{
 };
 const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onApprove,onBlock,onDeleteDemos,forceReloadProfiles,syncFirebaseUsers,onSendAnnouncement,showToast})=>{
   const [adminTab,setAdminTab]=useState('dashboard');
-  const [emailSubject,setEmailSubject]=useState('');const [emailBody,setEmailBody]=useState('');const [emailType,setEmailType]=useState('convocatoria');const [recipients,setRecipients]=useState([]);const [recInput,setRecInput]=useState('');const [sendAll,setSendAll]=useState(false);const [sending,setSending]=useState(false);
+  const [emailSubject,setEmailSubject]=useState('');const [emailBody,setEmailBody]=useState('');const [emailType,setEmailType]=useState('convocatoria');const [recipients,setRecipients]=useState([]);const [recInput,setRecInput]=useState('');const [sendAll,setSendAll]=useState(true);const [selectedUsers,setSelectedUsers]=useState([]);const [sending,setSending]=useState(false);
   const [filterCat,setFilterCat]=useState('all');const [filterMuni,setFilterMuni]=useState('all');
   
   if(!currentUser||currentUser.role!=='admin')return React.createElement('div',{className:'view'},React.createElement('div',{style:{padding:'60px 20px'}},React.createElement('div',{className:'access-denied'},React.createElement(Ic,{n:'shield',size:44,color:'var(--brd)'}),React.createElement('h2',null,'Acceso restringido'),React.createElement('p',null,'El panel requiere credenciales de administrador.'),React.createElement('button',{onClick:()=>onAuthClick('login'),style:{padding:'11px 24px',background:'linear-gradient(135deg,#c4611e,#8b2e18)',border:'none',borderRadius:10,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}},'Iniciar sesión'))));
@@ -3079,11 +3089,21 @@ function App(){
     showToast(updated?.verified?'✓ Perfil verificado: '+updated.name:'Verificación removida');
   };
   const onDelete=async(id)=>{
-    if(!window.confirm('¿Eliminar permanentemente este perfil? Esta acción no se puede deshacer.'))return;
+    const prof=profiles.find(p=>p.id===id);
+    if(!prof)return;
+    if(!window.confirm('¿Eliminar permanentemente a '+prof.name+'?\n\nSe eliminará su perfil de la plataforma y de la base de datos. El usuario podrá registrarse de nuevo con el mismo correo.'))return;
+    /* Remove from profiles */
     const np=profiles.filter(p=>p.id!==id);
     setProfiles(np);
-    try{await DB.set('profiles',np,true);}catch(e){console.warn('Save error',e);}
-    showToast('Perfil eliminado');
+    try{await DB.set('profiles',np,true);}catch(e){}
+    /* Remove from Firebase users collection */
+    if(_fbReady&&_db&&prof.userId){
+      try{await _db.collection('users').doc(prof.userId).delete();console.log('User doc deleted from Firebase');}catch(e){console.warn('Could not delete user doc:',e);}
+      try{await _db.collection('nodo_pending').doc(prof.userId).delete();}catch(_){}
+    }
+    /* Note: Firebase Auth account requires Admin SDK to delete — cannot be done from browser */
+    /* The user CAN re-register with the same email after deletion */
+    showToast('✓ '+prof.name+' eliminado de la plataforma y la base de datos');
   };
   const onLogin=u=>{setCurrentUser(u);DB.get(u.role==='admin'?'notifs:admin':'notifs:'+u.id).then(n=>setNotifs(n||[])).catch(()=>{});};
   const onLogout=async()=>{await DB.del('session');setCurrentUser(null);setNotifs([]);showToast('Sesión cerrada');};
