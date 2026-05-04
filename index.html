@@ -544,6 +544,7 @@ const CATS_PROFILE=[
   {id:'cineasta',label:'Cineasta / Realizador/a',color:'#1a3a5e'},
   {id:'animador',label:'Animador/a',color:'#2a4a6e'},
   /* Otro */
+  {id:'produccion',label:'Producción / Representación',color:'#0e7490'},
   {id:'otro',label:'Otro',color:'#7a7a7a'},
 ];
 const CMAP=Object.fromEntries(CATS_PROFILE.map(c=>[c.id,c]));
@@ -994,8 +995,13 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
     const bottomBar=isMobile?60:0;
     const h=window.innerHeight-58-bottomBar;
     container.style.height=h+'px';
+    /* Zacatecas state bounds: SW(21.0,-104.4) NE(25.2,-100.6) */
+    const ZAC_BOUNDS=L.latLngBounds([[21.0,-104.4],[25.2,-100.6]]);
     const map=L.map(container,{
       center:[23.0,-102.7],zoom:8,
+      maxBounds:ZAC_BOUNDS.pad(0.5),
+      maxBoundsViscosity:0.6,
+      minZoom:7,
       zoomControl:true,
       scrollWheelZoom:true,
       touchZoom:true,
@@ -1006,6 +1012,8 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
       attributionControl:true,
     });
     map.zoomControl.setPosition('bottomright');
+    /* Fit map to Zacatecas on first load */
+    map.fitBounds([[21.4,-104.2],[25.0,-100.8]]);
     /* CartoDB Voyager — warm style, calles, municipios, localidades — gratis */
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
       attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> © <a href="https://carto.com/" target="_blank">CARTO</a>',
@@ -1223,7 +1231,9 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
           )
         :React.createElement('div',{className:'field-group'},
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Nombre completo'),React.createElement('input',{className:'field-input',value:name,onChange:e=>setName(e.target.value),placeholder:'Tu nombre artístico'})),
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de perfil'),React.createElement('select',{className:'field-select',value:cat,onChange:e=>setCat(e.target.value)},React.createElement('option',{value:''},'¿Cómo te describes?'),CATS_PROFILE.filter(c=>c.id!=='all').map(c=>React.createElement('option',{key:c.id,value:c.id},c.label))),cat==='otro'&&React.createElement('input',{className:'field-input',style:{marginTop:8},placeholder:'Describe tu perfil...',onChange:e=>{const v=e.target.value.trim();if(v)setCat('otro_'+v);}})),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de perfil'),React.createElement('select',{className:'field-select',value:cat,onChange:e=>setCat(e.target.value)},React.createElement('option',{value:''},'¿Cómo te describes?'),CATS_PROFILE.filter(c=>c.id!=='all').map(c=>React.createElement('option',{key:c.id,value:c.id},c.label))),cat==='otro'&&React.createElement('input',{className:'field-input',style:{marginTop:8},placeholder:'Describe tu perfil (ej: Fotógrafo, Ceramista...)...',onChange:e=>{const v=e.target.value.trim();if(v)setCat('otro_'+v);}})),
+            React.createElement('div',{style:{fontSize:11,color:'var(--txts)',marginTop:6,lineHeight:1.6,padding:'8px 12px',background:'rgba(249,115,22,.04)',border:'1px solid rgba(249,115,22,.15)',borderRadius:8}},
+              '¿No encuentras tu perfil? Elige "Otro" y escribe tu especialidad. Si hay muchos como tú, lo agregaremos como categoría oficial.'),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Correo electrónico'),React.createElement('input',{className:'field-input',value:email,onChange:e=>setEmail(e.target.value),placeholder:'correo@dominio.com'})),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Contraseña'),React.createElement('input',{className:'field-input',type:'password',value:pass,onChange:e=>setPass(e.target.value),placeholder:'••••••••'})),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Confirmar contraseña'),React.createElement('input',{className:'field-input',type:'password',value:confirm,onChange:e=>setConfirm(e.target.value),onKeyDown:e=>e.key==='Enter'&&doRegister(),placeholder:'Repite la contraseña'}))
@@ -1350,7 +1360,19 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
     });
     return items.sort((a,b)=>b.pct-a.pct).slice(0,6);
   },[profiles]);
-  const allContent=useMemo(()=>{const items=[];profiles.forEach(p=>{(p.portfolio||[]).forEach(item=>items.push({...item,profileName:p.name,profileCat:p.cat,pid:p.id,prof:p}));(p.convocatorias||[]).forEach(item=>items.push({...item,type:'convocatoria',profileName:p.name,profileCat:p.cat,pid:p.id,prof:p}));});return items.slice(0,12);},[profiles]);
+  const allContent=useMemo(()=>{
+    const items=[];
+    profiles.forEach(p=>{
+      /* Photos and videos from portfolio */
+      (p.portfolio||[]).forEach(item=>items.push({...item,profileName:p.name,profileCat:p.cat,pid:p.id,prof:p}));
+      /* Convocatorias */
+      (p.convocatorias||[]).forEach(item=>items.push({...item,type:'convocatoria',profileName:p.name,profileCat:p.cat,pid:p.id,prof:p}));
+      /* Music embeds — Spotify / SoundCloud */
+      if(p.musicUrl){items.push({type:'music',url:p.musicUrl,profileName:p.name,profileCat:p.cat,pid:p.id,prof:p});}
+    });
+    /* Sort by most recent, shuffle slightly for variety */
+    return items.sort(()=>Math.random()-.5).slice(0,16);
+  },[profiles]);
   return React.createElement('div',{className:'view'},
     !currentUser&&React.createElement(VisitorBanner,{onAuthClick}),
     React.createElement('div',{className:'hero'},
@@ -1433,11 +1455,18 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
       ),
       /* GALLERY */
       allContent.length>0&&React.createElement('div',{className:'gallery-section'},
-        React.createElement('div',{className:'feed-header'},React.createElement('h2',{className:'section-title'},'Últimas ',React.createElement('em',null,'obras y convocatorias')),React.createElement('button',{className:'link-btn',onClick:()=>go('dir')},'Ver todo →')),
+        React.createElement('div',{className:'feed-header'},React.createElement('h2',{className:'section-title'},'Lo último en NODO ',React.createElement('em',null,'— fotos, música y más')),React.createElement('button',{className:'link-btn',onClick:()=>go('dir')},'Ver todo →')),
         React.createElement('div',{className:'gallery-grid'},allContent.map((item,i)=>
           React.createElement('div',{key:i,className:'gallery-card',onClick:()=>{setProf(item.prof);go('profile');}},
             React.createElement('div',{className:'gallery-thumb'},
-              item.url?React.createElement('img',{src:item.url,style:{width:'100%',height:'100%',objectFit:'cover'}}):React.createElement('div',{style:{width:'100%',height:'100%',background:'linear-gradient(135deg,'+catInfo(item.prof.cat).color+'33,'+catInfo(item.prof.cat).color+'11)',display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement(Ic,{n:item.type==='video'?'video':item.type==='convocatoria'?'bullhorn':'image',size:34,color:'rgba(255,255,255,.5)'})),
+              item.type==='music'
+                ?React.createElement('div',{style:{width:'100%',height:'100%',background:item.url.includes('spotify')?'#1DB954':'#ff5500',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}},
+                    React.createElement('div',{style:{fontSize:36}},'🎵'),
+                    React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,.8)',fontWeight:600,letterSpacing:1}},(item.url.includes('spotify')?'SPOTIFY':'SOUNDCLOUD'))
+                  )
+                :item.url
+                  ?React.createElement('img',{src:item.url,style:{width:'100%',height:'100%',objectFit:'cover'}})
+                  :React.createElement('div',{style:{width:'100%',height:'100%',background:'linear-gradient(135deg,'+catInfo(item.prof.cat).color+'33,'+catInfo(item.prof.cat).color+'11)',display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement(Ic,{n:item.type==='video'?'video':item.type==='convocatoria'?'bullhorn':'image',size:34,color:'rgba(255,255,255,.5)'})),
               item.type==='video'&&React.createElement('div',{className:'video-badge'},React.createElement(Ic,{n:'video',size:10,color:'#fff'}),'Video')
             ),
             React.createElement('div',{className:'gallery-card-body'},
@@ -1980,7 +2009,7 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
               React.createElement('td',null,
                 React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
                   /* Approve */
-                  p.status!=='approved'&&!p.isDemo&&React.createElement('button',{onClick:()=>{const np=profiles.map(x=>x.id===p.id?{...x,status:'approved',approvedAt:fmtDate()}:x);setProfiles(np);showToast&&showToast('✓ Perfil aprobado: '+p.name);},style:{padding:'4px 9px',borderRadius:6,border:'none',background:'rgba(31,107,94,.12)',color:'#1f6b5e',fontSize:11,cursor:'pointer'}},'✓ Aprobar'),
+                  !p.isDemo&&React.createElement('button',{onClick:async()=>{const isApproved=p.status==='approved';const np=profiles.map(x=>x.id===p.id?{...x,status:isApproved?'pending':'approved',approvedAt:isApproved?null:fmtDate()}:x);setProfiles(np);await DB.set('profiles',np,true);showToast&&showToast(isApproved?'Perfil pendiente: '+p.name:'✓ Perfil aprobado: '+p.name);},style:{padding:'4px 9px',borderRadius:6,border:'none',background:p.status==='approved'?'rgba(160,124,40,.12)':'rgba(31,107,94,.12)',color:p.status==='approved'?'#a07c28':'#1f6b5e',fontSize:11,cursor:'pointer'}},p.status==='approved'?'↺ Pendiente':'✓ Aprobar'),
                   /* Block/Unblock */
                   React.createElement('button',{onClick:()=>{const np=profiles.map(x=>x.id===p.id?{...x,blocked:!x.blocked,status:x.blocked?'pending':'blocked'}:x);setProfiles(np);},style:{padding:'4px 9px',borderRadius:6,border:'none',background:p.blocked?'rgba(31,107,94,.12)':'rgba(192,57,43,.08)',color:p.blocked?'#1f6b5e':'#c0392b',fontSize:11,cursor:'pointer'}},p.blocked?'Desbloquear':'Bloquear'),
                   /* Verify toggle */
