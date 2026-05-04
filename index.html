@@ -350,12 +350,12 @@ select option{background:#ffffff;}
 .msg-bubble.me .msg-text{color:#fff;}
 .msg-time{font-size:9px;color:var(--txtm);margin-top:4px;text-align:right;}
 .msg-bubble.me .msg-time{color:rgba(255,255,255,.6);}
-.chat-input-row{display:flex;gap:9px;padding:12px 16px;border-top:1px solid var(--brd);align-items:center;flex-shrink:0;background:var(--bgc);padding-bottom:max(16px,env(safe-area-inset-bottom,16px));}
+.chat-input-row{display:flex;gap:9px;padding:10px 12px 10px;border-top:1px solid var(--brd);align-items:center;flex-shrink:0;background:var(--bgc);}
 @media(max-width:768px){
-  .chat-view{padding-bottom:0!important;}
-  .chat-msgs{padding-bottom:8px;}
-  .chat-input-row{padding:10px 12px;padding-bottom:max(12px,env(safe-area-inset-bottom,12px));position:sticky;bottom:0;z-index:50;}
-  .chat-input{font-size:16px!important;}/* Prevents iOS zoom on focus */
+  .chat-view{padding-bottom:60px!important;}
+  .chat-input-row{padding:10px 12px;padding-bottom:16px;position:sticky;bottom:60px;z-index:50;box-shadow:0 -2px 12px rgba(0,0,0,.06);}
+  .chat-input{font-size:16px!important;}
+  .chat-msgs{padding-bottom:16px;}
 }
 .chat-input{flex:1;padding:11px 15px;background:var(--bg);border:1px solid var(--brd);border-radius:22px;color:var(--txt);font-size:13px;}
 .chat-input:focus{outline:none;border-color:var(--amb);}
@@ -1375,12 +1375,21 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
     return()=>{delete window.__nodo_openProfile;delete window.__nodo_openChat;delete window.__nodo_currentUser;};
   },[profiles,go,setProf]);
 
+  const isMob=window.innerWidth<=768;
   return React.createElement('div',{className:'map-view',style:{position:'relative'}},
-    /* Mobile filter FAB */
-    React.createElement('button',{className:'map-filter-fab',onClick:()=>setPanelOpen(!panelOpen),title:'Filtros',style:{display:window.innerWidth<=768?'flex':'none'}},panelOpen?'✕':'⚙'),
+    /* Mobile search bar — always visible at top */
+    isMob&&React.createElement('div',{style:{position:'fixed',top:58,left:0,right:0,zIndex:300,background:'rgba(255,255,255,.97)',borderBottom:'1px solid var(--brd)',padding:'8px 12px',display:'flex',gap:8,alignItems:'center',backdropFilter:'blur(12px)'}},
+      React.createElement('div',{style:{flex:1,position:'relative'}},
+        React.createElement('span',{style:{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',pointerEvents:'none'}},React.createElement(Ic,{n:'search',size:14,color:'#9ca3af'})),
+        React.createElement('input',{value:queryFilter,onChange:e=>setQueryFilter(e.target.value),placeholder:'Buscar nombre, municipio...',className:'field-input',style:{padding:'9px 10px 9px 32px',fontSize:14}})
+      ),
+      React.createElement('button',{onClick:()=>setPanelOpen(!panelOpen),style:{width:38,height:38,borderRadius:10,border:'1.5px solid '+(panelOpen?'#f97316':'var(--brd)'),background:panelOpen?'rgba(249,115,22,.08)':'#f8fafc',color:panelOpen?'#f97316':'var(--txts)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,cursor:'pointer'}},
+        React.createElement(Ic,{n:'filter',size:16})
+      )
+    ),
     /* Mobile overlay */
-    panelOpen&&window.innerWidth<=768&&React.createElement('div',{className:'map-filter-mobile-overlay visible',onClick:()=>setPanelOpen(false)}),
-    React.createElement('div',{className:'map-body',style:{position:'relative'}},
+    panelOpen&&isMob&&React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:598,backdropFilter:'blur(2px)'},onClick:()=>setPanelOpen(false)}),
+    React.createElement('div',{className:'map-body',style:{position:'relative',marginTop:isMob?54:0}},
       /* FILTER PANEL */
       React.createElement('div',{className:'map-filter-panel '+(panelOpen?'open':'closed')},
         panelOpen&&React.createElement(React.Fragment,null,
@@ -1564,7 +1573,7 @@ const Navbar=({view,go,currentUser,onLogout,onAuthClick,notifs,setNotifs,onRetur
   const markAll=async()=>{const upd=notifs.map(n=>({...n,unread:false}));setNotifs(upd);if(currentUser)await DB.set('notifs:'+currentUser.id,upd);};
   const nav=[{v:'home',n:'home',l:'Inicio'},{v:'map',n:'map',l:'Mapa'},{v:'dir',n:'users',l:'Directorio'},{v:'chat',n:'msg',l:'Mensajes'}];
   return React.createElement('nav',{className:'navbar'},
-    React.createElement('button',{className:'logo',onClick:()=>go('home')},React.createElement('div',{className:'logo-icon'},React.createElement('div',{className:'logo-dot'})),React.createElement('div',null,React.createElement('div',{className:'logo-word'},'NODO'),React.createElement('div',{className:'logo-sub'},'ZACATECAS'))),
+    React.createElement('button',{className:'logo',onClick:()=>{setViewHistory(['home']);setView('home');window.scrollTo({top:0,behavior:'smooth'});}},React.createElement('div',{className:'logo-icon'},React.createElement('div',{className:'logo-dot'})),React.createElement('div',null,React.createElement('div',{className:'logo-word'},'NODO'),React.createElement('div',{className:'logo-sub'},'ZACATECAS'))),
     React.createElement('div',{className:'nav-links'},nav.map(n=>React.createElement('button',{key:n.v,className:'nav-btn'+(view===n.v?' active':''),onClick:()=>go(n.v)},React.createElement(Ic,{n:n.n,size:15}),n.l))),
     React.createElement('div',{className:'nav-right'},
       (!currentUser||currentUser.role==='visitor')&&React.createElement('button',{className:'btn-home-return',onClick:onReturnHome},React.createElement(Ic,{n:'arrow_l',size:13}),'Inicio'),
@@ -1599,7 +1608,9 @@ const Navbar=({view,go,currentUser,onLogout,onAuthClick,notifs,setNotifs,onRetur
   );
 };
 const BottomNav=({view,go,onReturnHome,currentUser})=>{
-  const tabs=[{v:'map',n:'pin',l:'Mapa'},{v:'dir',n:'users',l:'Dir.'},{v:'chat',n:'msg',l:'Chat'},{v:'home',n:'home',l:'Inicio',visitorOnly:true},{v:'back',n:'arrow_l',l:'Menú',loggedOnly:true}].filter(t=>currentUser&&currentUser.role!=='visitor'?!t.visitorOnly:!t.loggedOnly);
+  const tabs=currentUser&&currentUser.role!=='visitor'
+    ?[{v:'home',n:'home',l:'Inicio'},{v:'map',n:'pin',l:'Mapa'},{v:'dir',n:'users',l:'Dir.'},{v:'chat',n:'msg',l:'Chat'}]
+    :[{v:'home',n:'home',l:'Inicio'},{v:'map',n:'pin',l:'Mapa'},{v:'dir',n:'users',l:'Dir.'}];
   return React.createElement('div',{className:'bottom-nav'},tabs.map(t=>React.createElement('button',{key:t.v,className:'bnav-btn'+(view===t.v?' active':''),onClick:()=>t.v==='back'?onReturnHome():go(t.v)},React.createElement(Ic,{n:t.n,size:21}),t.l)));
 };
 const VisitorBanner=({onAuthClick})=>React.createElement('div',{className:'visitor-banner'},
@@ -2227,7 +2238,7 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
 
   const El=React.createElement;
   return El('div',{className:'chat-view'},
-    El('div',{className:'conv-list'+(isMobile&&activeConv?' mh':'')},
+    El('div',{className:'conv-list',style:{display:isMobile&&activeConv?'none':'flex',flexDirection:'column',width:isMobile?'100%':'340px',borderRight:isMobile?'none':'1px solid var(--brd)',overflowY:'auto',background:'var(--bgc)',flexShrink:0}},
       El('div',{className:'conv-list-hdr'},
         El('h2',null,'Mensajes'),
         Notification&&Notification.permission!=='granted'&&El('button',{
@@ -2241,7 +2252,7 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
         El('div',{style:{flex:1,minWidth:0}},El('div',{style:{display:'flex',justifyContent:'space-between'}},El('span',{className:'conv-name'},op.name),El('span',{className:'conv-time'},c.lastTime?new Date(c.lastTime).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}):'') ),El('p',{className:'conv-last'},c.lastMsg||'Nueva conversación'))
       );})
     ),
-    activeConv?El('div',{className:'chat-panel'+(isMobile?' ms':'')},
+    activeConv?El('div',{style:{flex:1,display:'flex',flexDirection:'column',minWidth:0,height:'100%',background:'var(--bgc)'}},
       El('div',{className:'chat-hdr'},
         isMobile&&El('button',{onClick:()=>setActiveConv(null),style:{background:'none',border:'none',marginRight:4,cursor:'pointer',display:'flex'}},El(Ic,{n:'arrow_l',size:18,color:'#9b8e7e'})),
         El(Av,{p:{id:activeConv.otherId,name:activeConv.otherName,cat:activeConv.otherCat||'artista',photo:activeConv.otherPhoto},size:36}),
@@ -2296,7 +2307,7 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
   return React.createElement('div',{className:'admin-view fadein'},
     React.createElement('div',{className:'admin-hdr'},React.createElement(Ic,{n:'shield',size:20,color:'#c4611e'}),React.createElement('h1',null,'Panel de Administración'),React.createElement('span',{style:{marginLeft:'auto',fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},ADMIN_EMAIL)),
     React.createElement('div',{className:'admin-body'},
-      React.createElement('div',{className:'admin-tabs'},[['dashboard','Panel','home'],['database','Base de datos','download'],['email','Correos','megaphone'],['profiles','Perfiles','users'],['config','Configuración','key']].map(([id,l,icon])=>React.createElement('button',{key:id,className:'admin-tab'+(adminTab===id?' active':''),onClick:()=>setAdminTab(id)},React.createElement(Ic,{n:icon,size:14}),'\u00A0',l))),
+      React.createElement('div',{className:'admin-tabs'},[['dashboard','Panel','home'],['database','Base de datos','download'],['email','Correos','megaphone'],['profiles','Perfiles','users'],['bienvenidas','🎨 Bienvenidas','sparkles'],['config','Configuración','key']].map(([id,l,icon])=>React.createElement('button',{key:id,className:'admin-tab'+(adminTab===id?' active':''),onClick:()=>setAdminTab(id)},id==='bienvenidas'?'🎨 Bienvenidas':React.createElement(React.Fragment,null,React.createElement(Ic,{n:icon,size:14}),'\u00A0',l)))),
       adminTab==='dashboard'&&React.createElement('div',null,
         /* Demo profiles banner */
         profiles.some(p=>p.isDemo)&&React.createElement('div',{style:{background:'rgba(160,124,40,.08)',border:'1px solid rgba(160,124,40,.25)',borderRadius:12,padding:'12px 18px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}},
@@ -2406,6 +2417,99 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
               )
             )))
           )
+        )
+      ),
+      /* ══════════════════════════════
+         TAB: BIENVENIDAS EN CANVA
+      ══════════════════════════════ */
+      adminTab==='bienvenidas'&&React.createElement('div',null,
+        /* Header */
+        React.createElement('div',{style:{background:'linear-gradient(135deg,rgba(124,58,237,.06),rgba(249,115,22,.04))',border:'1px solid rgba(124,58,237,.18)',borderRadius:16,padding:'20px 22px',marginBottom:20}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:8}},
+            React.createElement('div',{style:{fontSize:28}},'🎨'),
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:20,fontWeight:700,color:'var(--txt)'}},'Bienvenidas en Canva'),
+              React.createElement('div',{style:{fontSize:13,color:'var(--txts)',marginTop:2}},'Genera publicaciones de bienvenida personalizadas para nuevos usuarios. Se abren en Canva para editar y descargar en alta resolución.')
+            )
+          ),
+          React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
+            [{l:'Instagram Post',f:'instagram_post',e:'📱'},{l:'Story / TikTok',f:'story',e:'📺'},{l:'Facebook Post',f:'facebook_post',e:'💻'},{l:'Muro Twitter/X',f:'twitter_post',e:'🐦'}].map(({l,f,e})=>
+              React.createElement('span',{key:f,style:{padding:'5px 12px',borderRadius:20,background:'rgba(124,58,237,.1)',border:'1px solid rgba(124,58,237,.2)',fontSize:12,color:'#7c3aed',fontWeight:600}},e,' ',l)
+            )
+          )
+        ),
+        /* Templates generated */
+        React.createElement('div',{style:{marginBottom:24}},
+          React.createElement('h3',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,color:'var(--txt)',marginBottom:14}},
+            '📋 Plantillas disponibles — haz clic para abrir y editar en Canva'
+          ),
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:12}},
+            [
+              {name:'Instagram Post — Bienvenida vibrante',url:'https://www.canva.com/d/b2HJDQeqe4329ot',thumb:'https://design.canva.ai/hdxKq32tPnmRbGQ',fmt:'Instagram 1080×1080'},
+              {name:'Instagram Post — Estilo moderno',url:'https://www.canva.com/d/Xfi97I6HNpq6VWP',thumb:'https://design.canva.ai/Lj-OvZ2lx1N6azW',fmt:'Instagram 1080×1080'},
+              {name:'Instagram Post — Artístico',url:'https://www.canva.com/d/xq-v8JJB5d48HZm',thumb:'https://design.canva.ai/FD52KlORN7MZQ4c',fmt:'Instagram 1080×1080'},
+              {name:'Instagram Post — Festivo',url:'https://www.canva.com/d/1EbrxYC4VrZUeFy',thumb:'https://design.canva.ai/SRqPi-zARpltjmd',fmt:'Instagram 1080×1080'},
+              {name:'Story / TikTok — Bold vertical',url:'https://www.canva.com/d/0U90usySYBDZBiV',thumb:'https://design.canva.ai/jGr0G0yWRfdeGNZ',fmt:'Story 1080×1920'},
+              {name:'Story / TikTok — Cultural',url:'https://www.canva.com/d/2wEr2gX68GYs3LB',thumb:'https://design.canva.ai/LkAB81uK5ro9cNA',fmt:'Story 1080×1920'},
+              {name:'Story / TikTok — Abstracto',url:'https://www.canva.com/d/_ub_CKBrgzQr2mM',thumb:'https://design.canva.ai/0bao2nWJTajoN28',fmt:'Story 1080×1920'},
+              {name:'Story / TikTok — Minimalista',url:'https://www.canva.com/d/TmkizqaDD4mTNWd',thumb:'https://design.canva.ai/Bfl09t-zfgMA9rt',fmt:'Story 1080×1920'},
+              {name:'Facebook — Nuevo talento',url:'https://www.canva.com/d/3CYeJy8t1gBMb_u',thumb:'https://design.canva.ai/4Dx6CnSU-lC0x9z',fmt:'Facebook 1200×630'},
+              {name:'Facebook — Bienvenida cálida',url:'https://www.canva.com/d/yCxx_GoWOHNA0MG',thumb:'https://design.canva.ai/fcITHhjQXJDncey',fmt:'Facebook 1200×630'},
+              {name:'Facebook — Artístico moderno',url:'https://www.canva.com/d/abXhGF8sPo36GHq',thumb:'https://design.canva.ai/O4q7qvLZgSz7jKe',fmt:'Facebook 1200×630'},
+              {name:'Facebook — Festivo creativo',url:'https://www.canva.com/d/DF6d7hdteRW9lSX',thumb:'https://design.canva.ai/p7YVi3-jATcUxcY',fmt:'Facebook 1200×630'},
+            ].map(({name,url,thumb,fmt})=>
+              React.createElement('a',{key:url,href:url,target:'_blank',rel:'noopener noreferrer',style:{display:'block',borderRadius:14,overflow:'hidden',border:'2px solid var(--brd)',cursor:'pointer',transition:'all .2s',textDecoration:'none'},
+                onMouseOver:e=>{e.currentTarget.style.borderColor='#7c3aed';e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 8px 24px rgba(124,58,237,.15)';},
+                onMouseOut:e=>{e.currentTarget.style.borderColor='var(--brd)';e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none';}},
+                React.createElement('div',{style:{position:'relative',paddingBottom:'75%',background:'#f8fafc',overflow:'hidden'}},
+                  React.createElement('img',{src:thumb,alt:name,style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover'},onError:e=>{e.target.style.display='none';}}),
+                  React.createElement('div',{style:{position:'absolute',top:8,right:8,background:'rgba(124,58,237,.85)',borderRadius:6,padding:'3px 8px',fontSize:9,color:'#fff',fontWeight:700,letterSpacing:1}},fmt)
+                ),
+                React.createElement('div',{style:{padding:'10px 12px',background:'#fff'}},
+                  React.createElement('div',{style:{fontSize:12,fontWeight:600,color:'var(--txt)',marginBottom:2}},name),
+                  React.createElement('div',{style:{fontSize:11,color:'#7c3aed',display:'flex',alignItems:'center',gap:4}},
+                    React.createElement('span',null,'✏️'),'Abrir en Canva para editar y descargar'
+                  )
+                )
+              )
+            )
+          )
+        ),
+        /* New users list */
+        React.createElement('div',{style:{background:'var(--bgc)',border:'1px solid var(--brd)',borderRadius:14,padding:18}},
+          React.createElement('h3',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,color:'var(--txt)',marginBottom:4}},'👥 Nuevos usuarios — genera su bienvenida'),
+          React.createElement('p',{style:{fontSize:12,color:'var(--txts)',marginBottom:16,lineHeight:1.6}},
+            'Selecciona una plantilla arriba, ábrela en Canva, reemplaza el nombre y la foto, descárgala en PNG alta resolución y publícala en redes.'
+          ),
+          profiles.filter(p=>!p.isDemo).length===0
+            ?React.createElement('div',{className:'empty-state'},React.createElement('div',{style:{fontSize:32,marginBottom:8}},'🎭'),React.createElement('p',null,'Aún no hay usuarios reales. Cuando se registren aparecerán aquí.'))
+            :React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10}},
+                [...profiles].filter(p=>!p.isDemo)
+                  .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))
+                  .slice(0,15)
+                  .map(p=>React.createElement('div',{key:p.id,style:{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'var(--bg)',border:'1px solid var(--brd)',borderRadius:10}},
+                    React.createElement(Av,{p,size:44}),
+                    React.createElement('div',{style:{flex:1,minWidth:0}},
+                      React.createElement('div',{style:{fontWeight:600,color:'var(--txt)',fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},p.name),
+                      React.createElement('div',{style:{fontSize:12,color:'var(--txts)',marginTop:2}},
+                        React.createElement(Badge,{cat:p.cat,sm:true}),' · ',muniName(p.muni),' · ',p.createdAt||'Reciente'
+                      )
+                    ),
+                    React.createElement('div',{style:{display:'flex',gap:6,flexShrink:0}},
+                      React.createElement('a',{href:'https://www.canva.com/d/b2HJDQeqe4329ot',target:'_blank',rel:'noopener noreferrer',title:'Generar bienvenida Instagram',style:{width:34,height:34,borderRadius:9,background:'rgba(124,58,237,.1)',border:'1px solid rgba(124,58,237,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,textDecoration:'none',cursor:'pointer'}},'📱'),
+                      React.createElement('a',{href:'https://www.canva.com/d/0U90usySYBDZBiV',target:'_blank',rel:'noopener noreferrer',title:'Generar bienvenida Story/TikTok',style:{width:34,height:34,borderRadius:9,background:'rgba(249,115,22,.08)',border:'1px solid rgba(249,115,22,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,textDecoration:'none',cursor:'pointer'}},'📺'),
+                      React.createElement('a',{href:'https://www.canva.com/d/3CYeJy8t1gBMb_u',target:'_blank',rel:'noopener noreferrer',title:'Generar bienvenida Facebook',style:{width:34,height:34,borderRadius:9,background:'rgba(13,148,136,.08)',border:'1px solid rgba(13,148,136,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,textDecoration:'none',cursor:'pointer'}},'💻')
+                    )
+                  ))
+              )
+        ),
+        /* How to use */
+        React.createElement('div',{style:{marginTop:18,padding:'14px 18px',background:'rgba(249,115,22,.04)',border:'1px solid rgba(249,115,22,.15)',borderRadius:12,fontSize:13,color:'var(--txts)',lineHeight:1.7}},
+          React.createElement('strong',{style:{color:'var(--amb)',display:'block',marginBottom:6}},'📖 Cómo usar las plantillas'),
+          '1. Selecciona una plantilla haciendo clic en ella → se abre en Canva',React.createElement('br',null),
+          '2. En Canva: reemplaza el nombre, foto y categoría del usuario',React.createElement('br',null),
+          '3. Haz clic en "Compartir" → "Descargar" → elige PNG alta resolución',React.createElement('br',null),
+          '4. Publica en tus redes sociales de NODO ART 🔥'
         )
       )
     )
