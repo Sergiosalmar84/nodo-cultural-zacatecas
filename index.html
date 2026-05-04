@@ -652,6 +652,8 @@ const CATS_PROFILE=[
   {id:'otro',label:'Otro',color:'#7a7a7a'},
 ];
 const CMAP=Object.fromEntries(CATS_PROFILE.map(c=>[c.id,c]));
+/* Get primary cat (first in array or string) */
+const getCatId=p=>Array.isArray(p.cats)&&p.cats.length>0?p.cats[0]:(p.cat||'artista');
 const catInfo=id=>{
   if(!id)return CMAP['otro'];
   if(id.startsWith('otro_'))return{...CMAP['otro'],label:id.slice(5)};
@@ -785,7 +787,7 @@ const Ic=({n,size=16,color,fill='none',sw=1.8})=>React.createElement('svg',{widt
 
 /* ── MINI COMPONENTS ── */
 const Av=({p,size=44,onClick})=>{
-  const c=catInfo(p.cat);
+  const c=catInfo(getCatId(p));
   const s={width:size,height:size,borderRadius:'50%',flexShrink:0,border:'2px solid '+c.color+'55',cursor:onClick?'pointer':'default',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,'+c.color+'25,'+c.color+'0a)',color:c.color,fontSize:Math.round(size*.33),fontFamily:'Playfair Display,serif',fontWeight:700};
   if(p.photo)return React.createElement('div',{style:s,onClick},React.createElement('img',{src:p.photo,style:{width:'100%',height:'100%',objectFit:'cover'}}));
   return React.createElement('div',{style:s,onClick},initials(p.name));
@@ -1735,7 +1737,7 @@ const PostCard=({post,profiles,onProfile,currentUser,onAuthClick})=>{
     )
   );
 };
-const PCard=({p,onClick})=>{const c=catInfo(p.cat);return React.createElement('div',{className:'pcard fadein',onClick:()=>onClick(p)},
+const PCard=({p,onClick})=>{const c=catInfo(getCatId(p));return React.createElement('div',{className:'pcard fadein',onClick:()=>onClick(p)},
   React.createElement('div',{className:'pcard-body'},
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:9}},
       React.createElement(Av,{p,size:46}),
@@ -1795,6 +1797,39 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
       React.createElement('div',{className:'hero-stats'},[{v:profiles.length,l:'Perfiles'},{v:MUNIS58.length,l:'Municipios'},{v:profiles.reduce((s,p)=>s+(p.conns||0),0),l:'Conexiones'},{v:profiles.reduce((s,p)=>s+(p.convocatorias||[]).length,0),l:'Convocatorias'}].map(s=>React.createElement('div',{key:s.l,className:'stat-item'},React.createElement('div',{className:'stat-num'},s.v),React.createElement('div',{className:'stat-lbl'},s.l))))
     ),
     React.createElement(HomeCarousel,{profiles,go,setProf}),
+    /* Lo último — photos, music, convocatorias */
+    React.createElement('div',{style:{maxWidth:1100,margin:'0 auto',padding:'22px 16px 0'}},
+      React.createElement('div',{className:'feed-header',style:{marginBottom:14}},
+        React.createElement('h2',{className:'section-title'},'Lo último en NODO ',React.createElement('em',{style:{fontStyle:'italic',color:'var(--amb)'}},'— fotos, música y más')),
+        React.createElement('button',{className:'link-btn',onClick:()=>go('dir')},'Ver todo →')
+      ),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:28}},
+        allContent.slice(0,6).map((item,i)=>{
+          const c=catInfo(item.prof?.cat||'artista');
+          const isMusic=item.type==='music';
+          const isSpotify=isMusic&&item.url?.includes('spotify');
+          let embedUrl='';
+          if(isSpotify){const m=(item.url||'').match(/spotify\.com\/(track|artist|album|playlist)\/([a-zA-Z0-9]+)/);if(m)embedUrl='https://open.spotify.com/embed/'+m[1]+'/'+m[2]+'?utm_source=generator&theme=0';}
+          else if(isMusic){embedUrl='https://w.soundcloud.com/player/?url='+encodeURIComponent(item.url||'')+'&color=%23f97316&auto_play=false&hide_related=true&show_comments=false&show_user=true';}
+          return React.createElement('div',{key:i,style:{borderRadius:14,overflow:'hidden',border:'1px solid var(--brd)',cursor:'pointer',transition:'all .2s',background:'var(--bgc)'},
+            onClick:()=>{if(item.prof){setProf(item.prof);go('profile');}},
+            onMouseOver:e=>{e.currentTarget.style.borderColor='var(--brdl)';e.currentTarget.style.transform='translateY(-2px)';},
+            onMouseOut:e=>{e.currentTarget.style.borderColor='var(--brd)';e.currentTarget.style.transform='none';}},
+            /* Visual */
+            isMusic&&embedUrl
+              ?React.createElement('div',{style:{height:120,overflow:'hidden'},onClick:e=>e.stopPropagation()},React.createElement('iframe',{src:embedUrl,width:'100%',height:120,frameBorder:'0',allow:'autoplay; clipboard-write; encrypted-media',loading:'lazy',style:{border:'none'}}))
+              :item.url
+                ?React.createElement('div',{style:{height:140,overflow:'hidden'}},React.createElement('img',{src:item.url,alt:'',style:{width:'100%',height:'100%',objectFit:'cover'}}))
+                :React.createElement('div',{style:{height:140,background:'linear-gradient(135deg,'+c.color+'22,'+c.color+'08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:40}},isMusic?'🎵':'🎨'),
+            /* Meta */
+            React.createElement('div',{style:{padding:'10px 12px'}},
+              React.createElement('div',{style:{fontSize:13,fontWeight:600,color:'var(--txt)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},item.prof?.name||''),
+              React.createElement('div',{style:{fontSize:11,color:'var(--txts)',marginTop:2}},item.type==='convocatoria'?'📢 Convocatoria':item.type==='music'?(isSpotify?'🎵 Spotify':'🎧 SoundCloud'):'📷 Portafolio')
+            )
+          );
+        })
+      )
+    ),
     React.createElement('div',{className:'home-wrap'},
       React.createElement('div',{className:'home-grid'},
         React.createElement('div',null,
@@ -1873,10 +1908,26 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
           React.createElement('div',{key:i,className:'gallery-card',onClick:()=>{setProf(item.prof);go('profile');}},
             React.createElement('div',{className:'gallery-thumb'},
               item.type==='music'
-                ?React.createElement('div',{style:{width:'100%',height:'100%',background:item.url.includes('spotify')?'#1DB954':'#ff5500',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}},
-                    React.createElement('div',{style:{fontSize:36}},'🎵'),
-                    React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,.8)',fontWeight:600,letterSpacing:1}},(item.url.includes('spotify')?'SPOTIFY':'SOUNDCLOUD'))
-                  )
+                ?(()=>{
+                    const isSpotify=item.url.includes('spotify');
+                    /* Build embed URL */
+                    let embedUrl='';
+                    if(isSpotify){
+                      const m=item.url.match(/spotify\.com\/(track|artist|album|playlist)\/([a-zA-Z0-9]+)/);
+                      if(m)embedUrl='https://open.spotify.com/embed/'+m[1]+'/'+m[2]+'?utm_source=generator&theme=0';
+                    }else{
+                      const m=item.url.match(/soundcloud\.com\/([^?]+)/);
+                      if(m)embedUrl='https://w.soundcloud.com/player/?url='+encodeURIComponent(item.url||'')+'&color=%23f97316&auto_play=false&hide_related=true&show_comments=false&show_user=true';
+                    }
+                    return embedUrl
+                      ?React.createElement('div',{style:{width:'100%',height:'100%',background:'#000',borderRadius:0,overflow:'hidden',display:'flex',alignItems:'center'},onClick:e=>e.stopPropagation()},
+                          React.createElement('iframe',{src:embedUrl,width:'100%',height:'100%',frameBorder:'0',allow:'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture',loading:'lazy',style:{border:'none'}})
+                        )
+                      :React.createElement('div',{style:{width:'100%',height:'100%',background:isSpotify?'#1DB954':'#ff5500',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}},
+                          React.createElement('div',{style:{fontSize:36}},'🎵'),
+                          React.createElement('div',{style:{fontSize:11,color:'rgba(255,255,255,.8)',fontWeight:600}},isSpotify?'SPOTIFY':'SOUNDCLOUD')
+                        );
+                  })()
                 :item.url
                   ?React.createElement('img',{src:item.url,style:{width:'100%',height:'100%',objectFit:'cover'}})
                   :React.createElement('div',{style:{width:'100%',height:'100%',background:'linear-gradient(135deg,'+catInfo(item.prof.cat).color+'33,'+catInfo(item.prof.cat).color+'11)',display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement(Ic,{n:item.type==='video'?'video':item.type==='convocatoria'?'bullhorn':'image',size:34,color:'rgba(255,255,255,.5)'})),
@@ -1935,7 +1986,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
   const [newVideo,setNewVideo]=useState('');const [convTitle,setConvTitle]=useState('');const [convDesc,setConvDesc]=useState('');const [convImg,setConvImg]=useState(null);
   const photoRef=useRef();const convImgRef=useRef();
   if(!p)return null;
-  const c=catInfo(p.cat);const isOwn=currentUser&&(currentUser.id===p.userId||currentUser.role==='admin');
+  const c=catInfo(getCatId(p));const isOwn=currentUser&&(currentUser.id===p.userId||currentUser.role==='admin');
   const addPhoto=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async ev=>{const url=await uploadPhoto(ev.target.result,'portfolio/'+Date.now()+'_'+f.name.replace(/[^a-z0-9.]/gi,'_'));onUpdateProfile({...p,portfolio:[...(p.portfolio||[]),{type:'photo',url,title:f.name.replace(/\.[^.]+$/,''),date:fmtDate()}]});};r.readAsDataURL(f);};
   const addVideo=()=>{
     if(!newVideo.trim())return;
@@ -1972,7 +2023,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
         React.createElement('div',{style:{width:82,height:82,borderRadius:20,flexShrink:0,background:c.color+'25',border:'3px solid '+c.color+'50',color:c.color,fontSize:30,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Playfair Display,serif',fontWeight:700,overflow:'hidden',cursor:isOwn?'pointer':'default'},onClick:isOwn?()=>setShowEdit(true):undefined},p.photo?React.createElement('img',{src:p.photo,style:{width:'100%',height:'100%',objectFit:'cover'}}):initials(p.name)),
         React.createElement('div',{style:{flex:1,paddingBottom:4}},
           React.createElement('div',{style:{display:'flex',alignItems:'center',gap:9,flexWrap:'wrap'}},React.createElement('h1',{className:'profile-name'},p.name),p.verified&&React.createElement('span',{className:'verified-badge'},React.createElement(Ic,{n:'check',size:10,color:'var(--amb)'}),'Verificado')),
-          React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',marginTop:8,flexWrap:'wrap'}},React.createElement(Badge,{cat:p.cat}),React.createElement('span',{style:{color:'var(--txts)',fontSize:13}},muniName(p.muni),', Zacatecas'),p.cp&&React.createElement('span',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},'CP '+p.cp))
+          React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',marginTop:8,flexWrap:'wrap'}},...(p.cats&&p.cats.length>1?p.cats.slice(0,3).map(c=>React.createElement(Badge,{key:c,cat:c,sm:true})):[React.createElement(Badge,{key:'c0',cat:p.cat||'artista'})]),React.createElement('span',{style:{color:'var(--txts)',fontSize:13}},muniName(p.muni),', Zacatecas'),p.cp&&React.createElement('span',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},'CP '+p.cp))
         ),
         React.createElement('div',{className:'profile-actions'},
           showShare&&React.createElement(ShareModal,{p,onClose:()=>setShowShare(false)}),
@@ -2133,7 +2184,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
 /* ── CREATE PAGE ── */
 const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
   const [step,setStep]=useState(1);
-  const [f,setF]=useState({name:'',cat:'',muni:'',cp:'',address:'',desc:'',bio:'',tags:'',artTags:[],web:'',ig:'',phone:'',email:'',photo:null});
+  const [f,setF]=useState({name:'',cat:'',cats:[],muni:'',cp:'',address:'',desc:'',bio:'',tags:'',artTags:[],web:'',ig:'',phone:'',email:'',photo:null});
   const [genning,setGenning]=useState(false);
   const upd=(k,v)=>setF(p=>({...p,[k]:v}));
   const cpOk=useMemo(()=>{if(!f.cp||f.cp.length<5)return null;const code=parseInt(f.cp);return code>=98000&&code<=99999;},[f.cp]);
@@ -2144,7 +2195,7 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
   const submit=async()=>{
     const muni=MUNIS58.find(m=>m.id===f.muni);
     const seed=Date.now();const dlat=((seed*13%100)/100-.5)*.006,dlng=((seed*17%100)/100-.5)*.010;
-    const newP={id:'p'+Date.now(),name:f.name.trim(),cat:f.cat,muni:f.muni,cp:f.cp,address:f.address,bio:f.bio.trim(),tags:f.tags.split(',').map(t=>t.trim()).filter(Boolean),artTags:f.artTags,verified:false,web:f.web,email:f.email,phone:f.phone,ig:f.ig,photo:f.photo,rating:0,views:0,conns:0,cg:['#3a2010','#1a0e08'],portfolio:[],convocatorias:[],userId:currentUser.id,lat:muni?(muni.lat+dlat):23,lng:muni?(muni.lng+dlng):-102.7,createdAt:fmtDate()};
+    const newP={id:'p'+Date.now(),name:f.name.trim(),cat:f.cat,muni:f.muni,cp:f.cp,address:f.address,bio:f.bio.trim(),sobre:f.sobre||'',tags:f.tags.split(',').map(t=>t.trim()).filter(Boolean),portfolio:(f.portfolio||[]).filter(Boolean).map((url,i)=>({id:'p'+Date.now()+i,type:'photo',url,title:''})),artTags:f.artTags,verified:false,web:f.web,email:f.email,phone:f.phone,ig:f.ig,photo:f.photo,rating:0,views:0,conns:0,cg:['#3a2010','#1a0e08'],portfolio:[],convocatorias:[],userId:currentUser.id,lat:muni?(muni.lat+dlat):23,lng:muni?(muni.lng+dlng):-102.7,createdAt:fmtDate()};
     await onAdd(newP);showToast('✓ Perfil publicado en NODO');go('dir');
   };
   const steps=[{n:1,l:'Identidad'},{n:2,l:'Ubicación'},{n:3,l:'Categorías'},{n:4,l:'Bio'},{n:5,l:'Contacto'}];
@@ -2161,7 +2212,22 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
           React.createElement('div',{style:{display:'flex',justifyContent:'center',marginBottom:22}},React.createElement(PhotoUpload,{photo:f.photo,onChange:v=>upd('photo',v)})),
           React.createElement('div',{className:'field-group'},
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Nombre / Nombre artístico *'),React.createElement('input',{className:'field-input',value:f.name,onChange:e=>upd('name',e.target.value),placeholder:'Tu nombre, espacio o colectivo...'})),
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de perfil *'),React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}},CATS_PROFILE.filter(c=>c.id!=='all').map(cat=>React.createElement('button',{key:cat.id,style:{display:'flex',alignItems:'center',gap:7,padding:'9px 11px',borderRadius:9,border:'1px solid '+(f.cat===cat.id||f.cat.startsWith('otro_')&&cat.id==='otro'?cat.color:'var(--brd)'),background:(f.cat===cat.id||f.cat.startsWith('otro_')&&cat.id==='otro')?cat.color+'18':'transparent',color:(f.cat===cat.id||f.cat.startsWith('otro_')&&cat.id==='otro')?cat.color:'var(--txts)',fontSize:12.5,textAlign:'left',cursor:'pointer',fontFamily:'DM Sans,sans-serif',fontWeight:(f.cat===cat.id||f.cat.startsWith('otro_')&&cat.id==='otro')?600:400,transition:'all .15s'},onClick:()=>upd('cat',cat.id)},cat.label))),(f.cat==='otro'||f.cat.startsWith('otro_'))&&React.createElement('input',{className:'field-input',style:{marginTop:4,gridColumn:'1/-1'},placeholder:'Describe tu perfil (ej: Ceramista, Trapecista...)',defaultValue:f.cat.startsWith('otro_')?f.cat.slice(5):'',onChange:e=>upd('cat',e.target.value.trim()?'otro_'+e.target.value.trim():'otro')}))
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de perfil * (puedes elegir varios)'),
+            React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:7,maxHeight:280,overflowY:'auto',padding:'4px 0'}},
+              CATS_PROFILE.filter(c=>c.id!=='all'&&c.id!=='otro').map(cat=>
+                React.createElement('label',{key:cat.id,style:{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:9,border:'1px solid '+((f.cats||[]).includes(cat.id)?cat.color:'var(--brd)'),background:(f.cats||[]).includes(cat.id)?cat.color+'12':'transparent',cursor:'pointer',transition:'all .15s'}},
+                  React.createElement('input',{type:'checkbox',checked:(f.cats||[]).includes(cat.id),onChange:e=>{const cur=f.cats||[];upd('cats',e.target.checked?[...cur,cat.id]:cur.filter(c=>c!==cat.id));},style:{width:16,height:16,accentColor:cat.color,flexShrink:0}}),
+                  React.createElement('span',{style:{color:(f.cats||[]).includes(cat.id)?cat.color:'var(--txts)',fontWeight:(f.cats||[]).includes(cat.id)?600:400,fontSize:13}},cat.label)
+                )
+              ),
+              React.createElement('div',{style:{marginTop:4}},
+                React.createElement('input',{className:'field-input',placeholder:'¿Otra especialidad? Escríbela aquí...',style:{fontSize:13},onChange:e=>{const v=e.target.value.trim();if(v.length>2){const cur=f.cats||[];const cid='otro_'+v;if(!cur.includes(cid))upd('cats',[...cur.filter(c=>!c.startsWith('otro_')),cid]);}}})
+              )
+            ),
+            (f.cats||[]).length>0&&React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap',marginTop:6}},
+              (f.cats||[]).map(c=>{const ci=catInfo(c);return React.createElement('span',{key:c,style:{padding:'3px 9px',borderRadius:20,background:ci.color+'18',border:'1px solid '+ci.color+'35',color:ci.color,fontSize:11,fontWeight:600}},ci.label);})
+            )
+            )
           )
         ),
         step===2&&React.createElement('div',null,
@@ -2183,7 +2249,17 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
           ),
           React.createElement('div',{className:'field-group'},
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Bio profesional *'),React.createElement('textarea',{className:'field-textarea',rows:5,value:f.bio,onChange:e=>upd('bio',e.target.value),placeholder:'Tu bio aparecerá en tu perfil público...'})),
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Especialidades (separadas por coma)'),React.createElement('input',{className:'field-input',value:f.tags,onChange:e=>upd('tags',e.target.value),placeholder:'Teatro, Muralismo, Gestión...'}))
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Especialidades (separadas por coma)'),React.createElement('input',{className:'field-input',value:f.tags,onChange:e=>upd('tags',e.target.value),placeholder:'Teatro, Muralismo, Gestión...'})),
+            React.createElement('div',null,
+              React.createElement('label',{className:'field-label'},'Sobre ti'),
+              React.createElement('textarea',{className:'field-textarea',rows:3,value:f.sobre||'',onChange:e=>upd('sobre',e.target.value),placeholder:'Cuéntale a la comunidad quién eres, qué haces y qué te inspira...'})
+            ),
+            React.createElement('div',null,
+              React.createElement('label',{className:'field-label'},'Portafolio — hasta 4 fotos'),
+              React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}},
+                [0,1,2,3].map(ii=>{const ph=(f.portfolio||[])[ii];return React.createElement('div',{key:ii,onClick:()=>{const ip=document.createElement('input');ip.type='file';ip.accept='image/*';ip.onchange=ev=>{const fi=ev.target.files[0];if(!fi||fi.size>3145728)return;const rd=new FileReader();rd.onload=re=>{const ar=[...(f.portfolio||[null,null,null,null])];ar[ii]=re.target.result;upd('portfolio',ar);};rd.readAsDataURL(fi);};ip.click();},style:{aspectRatio:'1',borderRadius:9,border:'2px dashed '+(ph?'#f97316':'var(--brd)'),cursor:'pointer',background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:4,overflow:'hidden'}},ph?React.createElement('img',{src:ph,style:{width:'100%',height:'100%',objectFit:'cover'}}):React.createElement(React.Fragment,null,React.createElement(Ic,{n:'camera',size:18,color:'var(--brd)'}),React.createElement('span',{style:{fontSize:9,color:'var(--txtm)'}},'Foto '+(ii+1))));})
+              )
+            )
           )
         ),
         step===5&&React.createElement('div',null,
@@ -2375,7 +2451,7 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
 };
 
 /* ── ADMIN PAGE ── */
-const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onApprove,onBlock,onDeleteDemos,onSendAnnouncement,showToast})=>{
+const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onApprove,onBlock,onDeleteDemos,forceReloadProfiles,onSendAnnouncement,showToast})=>{
   const [adminTab,setAdminTab]=useState('dashboard');
   const [emailSubject,setEmailSubject]=useState('');const [emailBody,setEmailBody]=useState('');const [emailType,setEmailType]=useState('convocatoria');const [recipients,setRecipients]=useState([]);const [recInput,setRecInput]=useState('');const [sendAll,setSendAll]=useState(false);const [sending,setSending]=useState(false);
   const [filterCat,setFilterCat]=useState('all');const [filterMuni,setFilterMuni]=useState('all');
@@ -2456,7 +2532,27 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
           React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de mensaje'),React.createElement('select',{className:'field-select',value:emailType,onChange:e=>setEmailType(e.target.value)},['convocatoria','anuncio','oferta','recordatorio','noticia','evento'].map(t=>React.createElement('option',{key:t,value:t},t.charAt(0).toUpperCase()+t.slice(1))))),
           React.createElement('div',null,
             React.createElement('label',{className:'field-label'},'Destinatarios'),
-            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:9}},React.createElement('input',{type:'checkbox',id:'sa',checked:sendAll,onChange:e=>setSendAll(e.target.checked),style:{width:16,height:16,accentColor:'#c4611e'}}),React.createElement('label',{htmlFor:'sa',style:{fontSize:13,color:'var(--txts)',cursor:'pointer'}},'Enviar a TODOS ('+profiles.length+' perfiles)')),
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:9}},
+                React.createElement('input',{type:'checkbox',id:'sa',checked:sendAll,onChange:e=>{setSendAll(e.target.checked);if(e.target.checked)setSelectedUsers([]);},style:{width:16,height:16,accentColor:'#c4611e'}}),
+                React.createElement('label',{htmlFor:'sa',style:{fontSize:13,color:'var(--txts)',cursor:'pointer'}},'Enviar a TODOS ('+profiles.length+' perfiles)')
+              ),
+              !sendAll&&React.createElement('div',{style:{marginBottom:14}},
+                React.createElement('label',{className:'field-label',style:{marginBottom:8}},'O selecciona perfiles individuales:'),
+                React.createElement('div',{style:{maxHeight:200,overflowY:'auto',border:'1px solid var(--brd)',borderRadius:9,padding:'6px'}},
+                  profiles.filter(p=>!p.isDemo).map(p=>React.createElement('label',{key:p.id,style:{display:'flex',alignItems:'center',gap:10,padding:'7px 10px',borderRadius:7,cursor:'pointer',transition:'background .15s',background:(selectedUsers||[]).includes(p.id)?'rgba(196,97,30,.06)':'transparent'},
+                    onMouseOver:e=>{e.currentTarget.style.background='var(--bgch)';},
+                    onMouseOut:e=>{e.currentTarget.style.background=(selectedUsers||[]).includes(p.id)?'rgba(196,97,30,.06)':'transparent';}},
+                    React.createElement('input',{type:'checkbox',checked:(selectedUsers||[]).includes(p.id),onChange:e=>{setSelectedUsers(prev=>e.target.checked?[...prev,p.id]:prev.filter(id=>id!==p.id));},style:{width:14,height:14,accentColor:'#c4611e'}}),
+                    React.createElement(Av,{p,size:28}),
+                    React.createElement('div',{style:{flex:1,minWidth:0}},
+                      React.createElement('div',{style:{fontSize:13,color:'var(--txt)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},p.name),
+                      p.email&&React.createElement('div',{style:{fontSize:10,color:'var(--txtm)'}},p.email),
+                      p.phone&&React.createElement('div',{style:{fontSize:10,color:'#25D366'}},p.phone)
+                    )
+                  ))
+                ),
+                React.createElement('div',{style:{fontSize:11,color:'var(--txts)',marginTop:5}},(selectedUsers||[]).length+' perfil(es) seleccionado(s)')
+              ),
             !sendAll&&React.createElement('div',null,
               React.createElement('div',{className:'recipient-chips'},recipients.map(r=>React.createElement('span',{key:r,className:'recipient-chip'},r,React.createElement('button',{onClick:()=>setRecipients(p=>p.filter(x=>x!==r)),style:{background:'none',border:'none',color:'var(--amb)',cursor:'pointer',display:'flex',padding:0}},React.createElement(Ic,{n:'x',size:10,color:'#c4611e'})))),React.createElement('input',{value:recInput,onChange:e=>setRecInput(e.target.value),onKeyDown:e=>e.key==='Enter'&&recInput.trim()&&(setRecipients(p=>[...new Set([...p,recInput.trim()])]),setRecInput('')),placeholder:'Agregar correo...',style:{border:'none',outline:'none',fontSize:12,color:'var(--txt)',background:'transparent',flex:1,minWidth:140}}))
             )
@@ -2478,6 +2574,12 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
         React.createElement('div',{className:'table-card'},
           React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}},
             React.createElement('h3',{style:{margin:0}},'Gestión de perfiles'),
+            React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+              React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},profiles.length+' perfiles totales'),
+              React.createElement('button',{onClick:forceReloadProfiles,style:{padding:'5px 12px',border:'1px solid var(--brd)',borderRadius:7,background:'var(--bgch)',color:'var(--txts)',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
+                React.createElement(Ic,{n:'refresh',size:12}),'Actualizar'
+              )
+            ),
             React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},profiles.length+' perfiles totales')
           ),
           profiles.length===0?React.createElement('div',{className:'empty-state'},React.createElement(Ic,{n:'users',size:36,color:'var(--brd)'}),React.createElement('h3',null,'Sin perfiles aún')):
@@ -2590,7 +2692,7 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
                     React.createElement('div',{style:{flex:1,minWidth:0}},
                       React.createElement('div',{style:{fontWeight:600,color:'var(--txt)',fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},p.name),
                       React.createElement('div',{style:{fontSize:12,color:'var(--txts)',marginTop:2}},
-                        React.createElement(Badge,{cat:p.cat,sm:true}),' · ',muniName(p.muni),' · ',p.createdAt||'Reciente'
+                        ...(p.cats&&p.cats.length>0?p.cats.slice(0,3).map(c=>React.createElement(Badge,{key:c,cat:c,sm:true})):[React.createElement(Badge,{key:'b0',cat:p.cat||'artista'})]),React.createElement('span',null,' · '),muniName(p.muni),' · ',p.createdAt||'Reciente'
                       )
                     ),
                     React.createElement('div',{style:{display:'flex',gap:6,flexShrink:0}},
@@ -2706,19 +2808,43 @@ function App(){
   useEffect(()=>{if(loaded)DB.set('posts',posts,true);},[posts,loaded]);
   useEffect(()=>{if(loaded&&users.length>0)DB.set('users',users,true);},[users,loaded]);
 
-  /* ── Real-time Firestore listener — updates profiles instantly across all devices ── */
+  /* ── Real-time Firestore listener — starts immediately, no dependency on loaded ── */
   useEffect(()=>{
-    if(!_fbReady||!loaded)return;
-    const unsub=_db.collection('nodo').doc('profiles').onSnapshot(snap=>{
-      if(snap.exists){
-        const data=snap.data();
-        if(data&&data.v&&Array.isArray(data.v)){
-          setProfiles(data.v);
+    if(!_fbReady)return;
+    let unsub=()=>{};
+    const startListener=()=>{
+      unsub=_db.collection('nodo').doc('profiles').onSnapshot(snap=>{
+        if(snap.exists){
+          const data=snap.data();
+          if(data&&data.v&&Array.isArray(data.v)){
+            setProfiles(prev=>{
+              /* Only update if data actually changed */
+              if(JSON.stringify(prev)===JSON.stringify(data.v))return prev;
+              return data.v;
+            });
+          }
         }
-      }
-    },err=>console.warn('Profiles listener error',err));
-    return()=>unsub();
-  },[loaded]);
+      },err=>{
+        console.warn('Profiles listener error',err);
+        /* Retry after 5s */
+        setTimeout(startListener,5000);
+      });
+    };
+    /* Start immediately and also retry when tab becomes visible */
+    startListener();
+    const onVisible=()=>{if(!document.hidden)startListener();};
+    document.addEventListener('visibilitychange',onVisible);
+    return()=>{unsub();document.removeEventListener('visibilitychange',onVisible);};
+  },[_fbReady]);
+
+  /* Force reload profiles from Firestore */
+  const forceReloadProfiles=async()=>{
+    if(!_fbReady)return;
+    try{
+      const snap=await _db.collection('nodo').doc('profiles').get();
+      if(snap.exists&&snap.data()?.v){setProfiles(snap.data().v);showToast('✓ Perfiles actualizados desde Firebase');}
+    }catch(e){showToast('Error al cargar desde Firebase');}
+  };
 
   const [viewHistory,setViewHistory]=useState(['home']);
 
@@ -2847,7 +2973,7 @@ function App(){
       view==='create'&&React.createElement(CreatePage,{go,onAdd:addProfile,showToast,currentUser,onAuthClick,profiles}),
       view==='chat'&&React.createElement(ChatPage,{profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,go}),
       view==='terms'&&React.createElement(TermsPage,{go}),
-      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onApprove,onBlock,onDeleteDemos,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:onVerify,
+      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onApprove,onBlock,onDeleteDemos,forceReloadProfiles,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:onVerify,
       onDelete:onDelete,
       onApprove:onApprove
       }),
