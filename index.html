@@ -1612,7 +1612,51 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
       const newUsers=[...users,newU];setUsers(newUsers);await DB.set('users',newUsers,true);
     }
     await DB.set('session',newU);
-    await DB.set('notifs:'+newU.id,[{id:'n0',text:'¡Bienvenido a NODO! Crea tu perfil cultural para aparecer en el directorio y el mapa.',time:'ahora',unread:true,type:'sistema'}]);
+    await DB.set('notifs:'+newU.id,[{id:'n0',text:'¡Bienvenido a NODO! Completa tu perfil cultural para aparecer en el directorio y el mapa.',time:'ahora',unread:true,type:'sistema'}]);
+
+    /* ── AUTO-CREATE PROFILE IN nodo/profiles IMMEDIATELY ON REGISTRATION ── */
+    /* This ensures the user appears in admin panel right away, before they fill CreatePage */
+    try{
+      const existingProfiles=await DB.get('profiles',true)||[];
+      const alreadyExists=existingProfiles.some(p=>p.userId===newU.id||p.email===newU.email);
+      if(!alreadyExists){
+        const autoProfile={
+          id:'auto_'+newU.id,
+          userId:newU.id,
+          name:newU.name,
+          cat:newU.cat||cat||'artista',
+          cats:newU.cat?[newU.cat]:[cat||'artista'],
+          email:newU.email,
+          phone:newU.phone||'',
+          bio:'',
+          sobre:'',
+          tags:[],
+          muni:'zac',
+          cp:'',
+          photo:null,
+          portfolio:[],
+          status:'pending',
+          approvedAt:null,
+          verified:false,
+          isDemo:false,
+          isAutoProfile:true,/* flag: user hasn't completed CreatePage yet */
+          createdAt:fmtDate(),
+          joinedAt:fmtDate(),
+          conns:0,views:0,rating:0,
+          cg:['#1a1720','#09080a'],
+          likedBy:[],userRatings:{},
+        };
+        const newProfiles=[autoProfile,...existingProfiles];
+        await DB.set('profiles',newProfiles,true);
+        /* Notify admin */
+        const adminNotif={id:'nadmin_'+Date.now(),text:'🆕 Nuevo registro: '+newU.name+' — necesita completar perfil',time:'ahora',unread:true,type:'nuevo_registro',profileId:autoProfile.id};
+        const existingAdminNotifs=await DB.get('notifs:admin')||[];
+        await DB.set('notifs:admin',[adminNotif,...existingAdminNotifs].slice(0,100));
+        /* Email notification */
+        notifyAdmin('🆕 Nuevo usuario registrado: '+newU.name,'Nombre: '+newU.name+'\nCorreo: '+newU.email+'\nTeléfono: '+(newU.phone||'—')+'\nFecha: '+fmtDate()+'\n\nEl usuario necesita completar su perfil. Aparecerá en el panel admin con estado "Pendiente".\n\nnodoart.mx');
+      }
+    }catch(profileErr){console.warn('Auto-profile creation failed:',profileErr);}
+
     onLogin(newU);showToast('¡Cuenta creada! Bienvenido, '+newU.name);onClose();
     if(onAfterRegister)onAfterRegister(newU);
   };
@@ -2451,7 +2495,7 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
 };
 
 /* ── ADMIN PAGE ── */
-const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onApprove,onBlock,onDeleteDemos,forceReloadProfiles,onSendAnnouncement,showToast})=>{
+const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onApprove,onBlock,onDeleteDemos,forceReloadProfiles,syncFirebaseUsers,onSendAnnouncement,showToast})=>{
   const [adminTab,setAdminTab]=useState('dashboard');
   const [emailSubject,setEmailSubject]=useState('');const [emailBody,setEmailBody]=useState('');const [emailType,setEmailType]=useState('convocatoria');const [recipients,setRecipients]=useState([]);const [recInput,setRecInput]=useState('');const [sendAll,setSendAll]=useState(false);const [sending,setSending]=useState(false);
   const [filterCat,setFilterCat]=useState('all');const [filterMuni,setFilterMuni]=useState('all');
@@ -2578,6 +2622,9 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
               React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},profiles.length+' perfiles totales'),
               React.createElement('button',{onClick:forceReloadProfiles,style:{padding:'5px 12px',border:'1px solid var(--brd)',borderRadius:7,background:'var(--bgch)',color:'var(--txts)',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
                 React.createElement(Ic,{n:'refresh',size:12}),'Actualizar'
+              ),
+              React.createElement('button',{onClick:syncFirebaseUsers,style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#2a7a6e,#1a5a4e)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
+                '🔄 Importar desde Firebase'
               )
             ),
             React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},profiles.length+' perfiles totales')
@@ -2838,6 +2885,57 @@ function App(){
   },[_fbReady]);
 
   /* Force reload profiles from Firestore */
+  /* ── SYNC: Import users from Firebase 'users' collection that have no profile ── */
+  const syncFirebaseUsers=async()=>{
+    if(!_fbReady)return showToast('Firebase no disponible');
+    showToast('⏳ Sincronizando usuarios de Firebase...');
+    try{
+      /* Load all users from Firestore users collection */
+      const usersSnap=await _db.collection('users').get();
+      const fbUsers=usersSnap.docs.map(d=>({id:d.id,...d.data()}));
+      /* Load current profiles */
+      const profSnap=await _db.collection('nodo').doc('profiles').get();
+      const currentProfiles=profSnap.exists?(profSnap.data().v||[]):[];
+      /* Find users without a profile */
+      let added=0;
+      const newProfiles=[...currentProfiles];
+      for(const u of fbUsers){
+        if(!u.name)continue;/* skip incomplete */
+        const hasProfile=currentProfiles.some(p=>p.userId===u.id||p.email===u.email);
+        if(!hasProfile){
+          newProfiles.unshift({
+            id:'sync_'+u.id,
+            userId:u.id,
+            name:u.name||u.displayName||'Usuario',
+            cat:u.cat||'artista',
+            cats:u.cats||[u.cat||'artista'],
+            email:u.email||'',
+            phone:u.phone||'',
+            bio:'',sobre:'',tags:[],
+            muni:u.muni||'zac',cp:'',
+            photo:u.photo||null,portfolio:[],
+            status:'pending',approvedAt:null,verified:false,
+            isDemo:false,isAutoProfile:true,
+            createdAt:u.joinedAt||fmtDate(),joinedAt:u.joinedAt||fmtDate(),
+            conns:0,views:0,rating:0,
+            cg:['#1a1720','#09080a'],
+            likedBy:[],userRatings:{},
+          });
+          added++;
+        }
+      }
+      if(added>0){
+        await _db.collection('nodo').doc('profiles').set({v:newProfiles,ts:Date.now()});
+        setProfiles(newProfiles);
+        showToast('✓ '+added+' usuario(s) importado(s) desde Firebase');
+      }else{
+        showToast('✓ Todos los usuarios ya tienen perfil');
+      }
+    }catch(e){
+      console.error('Sync error:',e);
+      showToast('Error al sincronizar: '+e.message);
+    }
+  };
   const forceReloadProfiles=async()=>{
     if(!_fbReady)return;
     try{
@@ -2973,7 +3071,7 @@ function App(){
       view==='create'&&React.createElement(CreatePage,{go,onAdd:addProfile,showToast,currentUser,onAuthClick,profiles}),
       view==='chat'&&React.createElement(ChatPage,{profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,go}),
       view==='terms'&&React.createElement(TermsPage,{go}),
-      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onApprove,onBlock,onDeleteDemos,forceReloadProfiles,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:onVerify,
+      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onApprove,onBlock,onDeleteDemos,forceReloadProfiles,syncFirebaseUsers,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:onVerify,
       onDelete:onDelete,
       onApprove:onApprove
       }),
