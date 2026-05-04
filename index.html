@@ -2274,6 +2274,25 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
           ),
           React.createElement('button',{onClick:()=>onDeleteDemos(),style:{padding:'8px 16px',background:'rgba(160,124,40,.15)',border:'1px solid rgba(160,124,40,.35)',borderRadius:9,color:'#a07c28',fontSize:12,fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}},React.createElement(Ic,{n:'x',size:13,color:'#a07c28'}),' Eliminar perfiles demo')
         ),
+        /* New custom types banner */
+        (()=>{
+          const customTypes=[...new Set(profiles.filter(p=>p.cat&&p.cat.startsWith('otro_')).map(p=>p.cat.slice(5)))].filter(Boolean);
+          return customTypes.length>0&&React.createElement('div',{style:{background:'rgba(124,58,237,.06)',border:'1px solid rgba(124,58,237,.2)',borderRadius:12,padding:'14px 18px',marginBottom:18}},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:10}},
+              React.createElement('div',{style:{fontSize:16}},'🆕'),
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontWeight:700,color:'#7c3aed',fontSize:13}},customTypes.length+' tipo(s) nuevo(s) propuesto(s) por usuarios'),
+                React.createElement('div',{style:{fontSize:12,color:'var(--txts)'}}),'Usuarios se han registrado con estos tipos que no están en el catálogo oficial. Puedes agregarlos si aplican.'
+              )
+            ),
+            React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
+              customTypes.map(t=>React.createElement('span',{key:t,style:{padding:'5px 14px',borderRadius:20,background:'rgba(124,58,237,.1)',border:'1px solid rgba(124,58,237,.25)',color:'#7c3aed',fontSize:12,fontWeight:600}},t))
+            ),
+            React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',marginTop:8}},
+              'Para agregar uno como categoría oficial, contacta al desarrollador con el nombre del tipo.'
+            )
+          );
+        })(),
         React.createElement('div',{className:'kpi-grid'},kpis.map(k=>React.createElement('div',{key:k.l,className:'kpi'},React.createElement('div',{className:'kpi-icon',style:{background:k.c+'15'}},React.createElement(Ic,{n:k.i,size:15,color:k.c})),React.createElement('div',{className:'kpi-val',style:{color:k.c}},k.v),React.createElement('div',{className:'kpi-lbl'},k.l)))),
         React.createElement('div',{className:'charts-row'},
           React.createElement('div',{className:'chart-card'},React.createElement('h3',null,'Por tipo'),byCat.map(c=>React.createElement('div',{key:c.id,className:'bar-row'},React.createElement('div',{className:'bar-lr'},React.createElement('span',{className:'bar-nm',style:{color:c.color}},c.label),React.createElement('span',{className:'bar-vl'},c.n)),React.createElement('div',{className:'bar-tr'},React.createElement('div',{className:'bar-fl',style:{width:c.n/maxC*100+'%',background:c.color}}))))),
@@ -2323,9 +2342,17 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
           profiles.length===0?React.createElement('div',{className:'empty-state'},React.createElement(Ic,{n:'users',size:36,color:'var(--brd)'}),React.createElement('h3',null,'Sin perfiles aún')):
           React.createElement('table',null,
             React.createElement('thead',null,React.createElement('tr',null,['Perfil','Tipo','Municipio','Estado','Aprobación','Acciones Admin'].map(h=>React.createElement('th',{key:h},h)))),
-            React.createElement('tbody',null,profiles.map(p=>React.createElement('tr',{key:p.id},
+            React.createElement('tbody',null,[...profiles].sort((a,b)=>{
+                /* Pending first, then by date */
+                if((a.status||'pending')==='pending'&&(b.status||'pending')!=='pending')return -1;
+                if((b.status||'pending')==='pending'&&(a.status||'pending')!=='pending')return 1;
+                return (b.createdAt||'').localeCompare(a.createdAt||'');
+              }).map(p=>React.createElement('tr',{key:p.id,style:{background:p.status!=='approved'&&!p.isDemo?'rgba(249,115,22,.03)':'transparent'}},
               React.createElement('td',null,React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,cursor:'pointer'},onClick:()=>{setProf(p);go('profile');}},React.createElement(Av,{p,size:28}),React.createElement('div',null,React.createElement('div',{style:{color:'var(--txt)',fontWeight:500,fontSize:12}},p.name.length>22?p.name.slice(0,22)+'…':p.name),p.blocked&&React.createElement('span',{style:{fontSize:9,color:'#c0392b',background:'rgba(192,57,43,.1)',borderRadius:3,padding:'1px 5px'}},'BLOQUEADO')))),
-              React.createElement('td',null,React.createElement(Badge,{cat:p.cat,sm:true})),
+              React.createElement('td',null,
+                React.createElement(Badge,{cat:p.cat,sm:true}),
+                p.cat&&p.cat.startsWith('otro_')&&React.createElement('div',{style:{fontSize:9,color:'#7c3aed',fontWeight:700,marginTop:3,letterSpacing:.5}}),'🆕 Nuevo tipo'
+              ),
               React.createElement('td',{style:{color:'var(--txts)',fontSize:11}},muniName(p.muni)),
               React.createElement('td',null,React.createElement('span',{style:{fontSize:10,color:p.verified?'#1f6b5e':'#9b8e7e',background:p.verified?'rgba(31,107,94,.12)':'var(--bg2)',borderRadius:5,padding:'2px 8px'}},p.verified?'Verificado':'Pendiente')),
               React.createElement('td',null,
