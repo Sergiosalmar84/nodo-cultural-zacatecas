@@ -193,9 +193,10 @@ select option{background:#ffffff;}
 .gallery-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-l);}
 .gallery-thumb{height:140px;background:var(--bg2);position:relative;overflow:hidden;}
 .gallery-thumb img{width:100%;height:100%;object-fit:cover;}
-.gallery-card-body{padding:12px;}
-.gallery-card-title{font-size:13px;font-weight:600;color:var(--txt);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gallery-card-sub{font-size:11px;color:var(--txts);}
+.gallery-card-body{padding:10px 12px 12px;}
+.gallery-card-title{font-family:'museo-sans','freight-display-pro',sans-serif;font-size:15px;font-weight:700;color:var(--txt);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2;}
+.gallery-card-sub{font-size:11px;color:var(--amb);font-weight:600;letter-spacing:.3px;display:flex;align-items:center;gap:4px;cursor:pointer;}
+.gallery-card-sub:hover{opacity:.8;}
 .gallery-card-type{display:inline-flex;align-items:center;gap:4px;font-size:10px;border-radius:4px;padding:2px 7px;margin-bottom:6px;font-weight:600;}
 /* AVATAR */
 .avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'museo-sans','freight-display-pro','Playfair Display',sans-serif;font-weight:700;flex-shrink:0;letter-spacing:.5px;overflow:hidden;}
@@ -1980,9 +1981,10 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
               item.type==='video'&&React.createElement('div',{className:'video-badge'},React.createElement(Ic,{n:'video',size:10,color:'#fff'}),'Video')
             ),
             React.createElement('div',{className:'gallery-card-body'},
-              React.createElement('span',{className:'gallery-card-type',style:{background:item.type==='convocatoria'?'rgba(94,61,138,.12)':item.type==='video'?'rgba(31,107,94,.12)':'rgba(196,97,30,.12)',color:item.type==='convocatoria'?'#5e3d8a':item.type==='video'?'#1f6b5e':'#c4611e'}},item.type==='convocatoria'?'Convocatoria':item.type==='video'?'Video':'Obra'),
-              React.createElement('div',{className:'gallery-card-title'},item.title||'Sin título'),
-              React.createElement('div',{className:'gallery-card-sub'},item.profileName)
+              React.createElement('div',{className:'gallery-card-title'},item.profileName||item.title||''),
+              React.createElement('div',{className:'gallery-card-sub',onClick:e=>{e.stopPropagation();/* follow action */}},
+                React.createElement('span',null,'+ Seguir')
+              )
             )
           )
         ))
