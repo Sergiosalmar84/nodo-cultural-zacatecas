@@ -829,7 +829,7 @@ const SafeImg=({src,alt,style,className})=>{
 };
 
 const Av=({p,size=44,onClick})=>{
-  const c=catInfo(getCatId(p));
+  const c=catInfo(getCatId(p||{}));
   const s={width:size,height:size,borderRadius:'50%',flexShrink:0,border:'2px solid '+c.color+'55',cursor:onClick?'pointer':'default',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,'+c.color+'25,'+c.color+'0a)',color:c.color,fontSize:Math.round(size*.33),fontFamily:'Playfair Display,serif',fontWeight:700};
   if(p.photo)return React.createElement('div',{style:s,onClick},
     React.createElement('img',{
@@ -1396,10 +1396,15 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
   const [panelOpen,setPanelOpen]=useState(window.innerWidth>768);
   const [zoom,setZoom]=useState(8);
 
-  const filtered=useMemo(()=>profiles.filter(p=>!p.hidden).filter(p=>{
+  const filtered=useMemo(()=>profiles.filter(p=>!p.hidden&&p.name&&p.muni).filter(p=>{
     const mc=catFilter==='all'||p.cat===catFilter;
     const mm=muniFilter==='all'||p.muni===muniFilter;
-    const mq=!queryFilter||p.name.toLowerCase().includes(queryFilter.toLowerCase())||muniName(p.muni).toLowerCase().includes(queryFilter.toLowerCase())||p.bio.toLowerCase().includes(queryFilter.toLowerCase());
+    const q=queryFilter.toLowerCase();
+    const mq=!queryFilter||
+      (p.name||'').toLowerCase().includes(q)||
+      muniName(p.muni).toLowerCase().includes(q)||
+      (p.bio||'').toLowerCase().includes(q)||
+      (p.cp||'').includes(queryFilter);
     return mc&&mm&&mq;
   }),[profiles,catFilter,muniFilter,queryFilter]);
 
@@ -1520,7 +1525,8 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
     markersRef.current.forEach(m=>{try{if(m&&m.marker&&m.marker.remove)m.marker.remove();}catch(e){}});
     markersRef.current=[];
     filtered.forEach(profile=>{
-      const muni=MUNIS58.find(m=>m.id===profile.muni);if(!muni)return;
+      if(!profile||!profile.name)return;/* skip invalid profiles */
+      const muni=MUNIS58.find(m=>m.id===profile.muni)||MUNIS58[0];/* fallback to Zacatecas */
       const seed=(profile.id.charCodeAt(0)||65)*13+(profile.id.charCodeAt(1)||65)*7;
       const dlat=(((seed*17)%100)/100-.5)*.007,dlng=(((seed*31)%100)/100-.5)*.011;
       const lat=profile.lat||(muni.lat+dlat),lng=profile.lng||(muni.lng+dlng);
@@ -1862,7 +1868,7 @@ const PostCard=({post,profiles,onProfile,currentUser,onAuthClick})=>{
     )
   );
 };
-const PCard=({p,onClick})=>{const c=catInfo(getCatId(p));return React.createElement('div',{className:'pcard fadein',onClick:()=>onClick(p)},
+const PCard=({p,onClick})=>{const c=catInfo(getCatId(p||{}));return React.createElement('div',{className:'pcard fadein',onClick:()=>onClick(p)},
   React.createElement('div',{className:'pcard-body'},
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:9}},
       React.createElement(Av,{p,size:46}),
@@ -1901,7 +1907,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
   },[profiles]);
   const allContent=useMemo(()=>{
     /* Sort profiles newest first (prioritize recent registrations) */
-    const sorted=[...profiles].filter(p=>!p.isDemo).sort((a,b)=>(b.createdAt||b.joinedAt||'').localeCompare(a.createdAt||a.joinedAt||''));
+    const sorted=[...profiles].filter(p=>p&&p.name).sort((a,b)=>(b.createdAt||b.joinedAt||'').localeCompare(a.createdAt||a.joinedAt||''));
     const items=[];
     /* First: add NEW profiles (no portfolio yet) as profile cards */
     sorted.slice(0,8).forEach(p=>{
@@ -1939,8 +1945,8 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
             React.createElement('button',{className:'link-btn',onClick:()=>go('dir')},'Ver directorio →')
           ),
           homeTab==='feed'&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}},
-              [...profiles].filter(p=>!p.isDemo&&p.name).sort(()=>Math.random()-.5).slice(0,16).map(p=>{
-                const c=catInfo(getCatId(p));
+              [...profiles].filter(p=>p&&p.name&&!p.hidden).sort(()=>Math.random()-.5).slice(0,16).map(p=>{
+                const c=catInfo(getCatId(p||{}));
                 return React.createElement('div',{key:p.id,
                   style:{borderRadius:14,overflow:'hidden',border:'1px solid var(--brd)',cursor:'pointer',transition:'all .2s',background:'var(--bgc)'},
                   onClick:()=>{setProf(p);go('profile');},
@@ -2079,7 +2085,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
 /* ── DIRECTORY ── */
 const DirPage=({profiles,go,setProf})=>{
   const [q,setQ]=useState('');const [cat,setCat]=useState('all');const [muni,setMuni]=useState('all');const [mode,setMode]=useState('grid');const [showF,setShowF]=useState(false);
-  const filtered=useMemo(()=>profiles.filter(p=>{const mq=!q||p.name.toLowerCase().includes(q.toLowerCase())||p.bio.toLowerCase().includes(q.toLowerCase())||(p.tags||[]).some(t=>t.toLowerCase().includes(q.toLowerCase()));return mq&&(cat==='all'||p.cat===cat)&&(muni==='all'||p.muni===muni);}),[q,cat,muni,profiles]);
+  const filtered=useMemo(()=>profiles.filter(p=>{const mq=!q||(p.name||'').toLowerCase().includes(q.toLowerCase())||(p.bio||'').toLowerCase().includes(q.toLowerCase())||(p.tags||[]).some(t=>t.toLowerCase().includes(q.toLowerCase()));return mq&&(cat==='all'||p.cat===cat)&&(muni==='all'||p.muni===muni);}),[q,cat,muni,profiles]);
   const activeMunis=useMemo(()=>MUNIS58.filter(m=>profiles.some(p=>p.muni===m.id)),[profiles]);
   return React.createElement('div',{className:'view'},
     React.createElement('div',{className:'dir-sticky'},
@@ -2117,7 +2123,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
   const [newVideo,setNewVideo]=useState('');const [convTitle,setConvTitle]=useState('');const [convDesc,setConvDesc]=useState('');const [convImg,setConvImg]=useState(null);
   const photoRef=useRef();const convImgRef=useRef();
   if(!p)return null;
-  const c=catInfo(getCatId(p));const isOwn=currentUser&&(currentUser.id===p.userId||currentUser.role==='admin');
+  const c=catInfo(getCatId(p||{}));const isOwn=currentUser&&(currentUser.id===p.userId||currentUser.role==='admin');
   const addPhoto=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async ev=>{const url=await uploadPhoto(ev.target.result,'portfolio/'+Date.now()+'_'+f.name.replace(/[^a-z0-9.]/gi,'_'));onUpdateProfile({...p,portfolio:[...(p.portfolio||[]),{type:'photo',url,title:f.name.replace(/\.[^.]+$/,''),date:fmtDate()}]});};r.readAsDataURL(f);};
   const addVideo=()=>{
     if(!newVideo.trim())return;
