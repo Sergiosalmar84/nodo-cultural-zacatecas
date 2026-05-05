@@ -1665,7 +1665,7 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
             name:newU.name,cat:newU.cat||cat||'artista',cats:[newU.cat||cat||'artista'],
             email:newU.email,phone:newU.phone||'',bio:'',sobre:'',tags:[],
             muni:'zac',cp:'',photo:null,portfolio:[],convocatorias:[],proyectos:[],
-            status:'pending',approvedAt:null,verified:false,isDemo:false,isAutoProfile:true,
+            status:'approved',approvedAt:fmtDate(),verified:true,isDemo:false,isAutoProfile:true,
             createdAt:fmtDate(),joinedAt:fmtDate(),
             conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{},
           };
@@ -1958,7 +1958,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
       allContent.length>0&&React.createElement('div',{className:'gallery-section'},
         React.createElement('div',{className:'feed-header'},React.createElement('h2',{className:'section-title'},'Lo último en NODO ',React.createElement('em',null,'— fotos, música y más')),React.createElement('button',{className:'link-btn',onClick:()=>go('dir')},'Ver todo →')),
         React.createElement('div',{className:'gallery-grid'},allContent.map((item,i)=>
-          React.createElement('div',{key:i,className:'gallery-card',onClick:()=>{setProf(item.prof);go('profile');}},
+          React.createElement('div',{key:i,className:'gallery-card',onClick:()=>{if(item.prof){setProf(item.prof);go('profile');}}},
             React.createElement('div',{className:'gallery-thumb'},
               item.type==='music'
                 ?(()=>{
@@ -2283,8 +2283,8 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
               )
             ),
             React.createElement('div',{style:{fontSize:11,color:'var(--txts)',marginTop:6,marginBottom:2}},
-            (f.cats||[]).length===0?'Ninguno seleccionado aún':(f.cats||[]).length+' tipo'+(( f.cats||[]).length>1?'s':'')+' seleccionado'+(( f.cats||[]).length>1?'s':'')
-          ),
+              (f.cats||[]).length===0?'Selecciona al menos uno':(f.cats||[]).length+' tipo(s) seleccionado(s)'
+            ),
             (f.cats||[]).length>0&&React.createElement('div',{style:{display:'flex',gap:5,flexWrap:'wrap',marginTop:4}},
               (f.cats||[]).map(c=>{const ci=catInfo(c);return React.createElement('span',{key:c,style:{padding:'3px 9px',borderRadius:20,background:ci.color+'18',border:'1px solid '+ci.color+'35',color:ci.color,fontSize:11,fontWeight:600}},ci.label);})
             )
@@ -2342,7 +2342,7 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
   const myProfile=profiles&&profiles.find(pr=>pr.userId===currentUser?.id);
   /* Block chat ONLY if profile explicitly has status==='pending' (not approved yet by admin).
      If no profile found, or status is approved/undefined, allow chat */
-  const isPending=myProfile&&(myProfile.status==='pending')&&!myProfile.approvedAt;
+  const isPending=myProfile&&myProfile.status==='pending'&&!myProfile.approvedAt&&!myProfile.verified;
   if(!currentUser||currentUser.role==='visitor')return React.createElement('div',{className:'view'},React.createElement('div',{style:{padding:'80px 20px'}},React.createElement('div',{className:'access-denied'},React.createElement(Ic,{n:'msg',size:44,color:'var(--brd)'}),React.createElement('h2',null,'Chat solo para miembros'),React.createElement('p',null,'Regístrate para chatear con artistas, gestores y agentes de la red.'),React.createElement('button',{onClick:()=>onAuthClick('register'),style:{padding:'11px 24px',background:'linear-gradient(135deg,#c4611e,#8b2e18)',border:'none',borderRadius:10,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}},'Crear cuenta gratis'))));
   if(isPending)return React.createElement('div',{className:'view'},React.createElement('div',{style:{padding:'60px 20px'}},React.createElement('div',{className:'access-denied'},React.createElement('div',{style:{fontSize:40,marginBottom:10}},'⏳'),React.createElement('h2',null,'Perfil pendiente de aprobación'),React.createElement('p',null,'Tu perfil ya es visible en el directorio, pero el chat se habilitará una vez que el administrador apruebe tu cuenta. Normalmente toma menos de 24 horas.'),React.createElement('button',{onClick:()=>go('profile'),style:{padding:'10px 22px',background:'linear-gradient(135deg,#c4611e,#8b2e18)',border:'none',borderRadius:9,color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer'}},'Ver mi perfil'))));
   const [convs,setConvs]=useState([]);
