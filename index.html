@@ -820,6 +820,14 @@ const P={home:'M3 9.5L12 2l9 7.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z M9 21V12h6v
 const Ic=({n,size=16,color,fill='none',sw=1.8})=>React.createElement('svg',{width:size,height:size,viewBox:'0 0 24 24',fill,style:{stroke:color||'currentColor',strokeWidth:sw,strokeLinecap:'round',strokeLinejoin:'round',flexShrink:0,display:'inline-block'},dangerouslySetInnerHTML:{__html:'<path d="'+(P[n]||'')+'"/>'}});
 
 /* ── MINI COMPONENTS ── */
+const SafeImg=({src,alt,style,className})=>{
+  const [err,setErr]=useState(false);
+  if(!src||err)return React.createElement('div',{style:{...style,background:'var(--bgch)',display:'flex',alignItems:'center',justifyContent:'center'},className},
+    React.createElement(Ic,{n:'camera',size:Math.min(Math.round((style&&style.width||40)/2),24),color:'var(--brd)'})
+  );
+  return React.createElement('img',{src,alt:alt||'',style,className,onError:()=>setErr(true),loading:'lazy'});
+};
+
 const Av=({p,size=44,onClick})=>{
   const c=catInfo(getCatId(p));
   const s={width:size,height:size,borderRadius:'50%',flexShrink:0,border:'2px solid '+c.color+'55',cursor:onClick?'pointer':'default',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,'+c.color+'25,'+c.color+'0a)',color:c.color,fontSize:Math.round(size*.33),fontFamily:'Playfair Display,serif',fontWeight:700};
@@ -1903,7 +1911,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
                   onMouseOut:e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none';}},
                   /* Photo */
                   React.createElement('div',{style:{height:120,background:'linear-gradient(135deg,'+c.color+'33,'+c.color+'11)',position:'relative',overflow:'hidden'}},
-                    p.photo&&React.createElement(SafeImg,{src:p.photo,style:{width:'100%',height:'100%',objectFit:'cover',display:'block'}}),
+                    p.photo&&React.createElement('img',{src:p.photo,alt:p.name,style:{width:'100%',height:'100%',objectFit:'cover',display:'block'},onError:e=>{e.target.style.display='none';},loading:'lazy'}),
                     !p.photo&&React.createElement('div',{style:{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:40,fontFamily:'museo-sans,sans-serif',fontWeight:900,color:c.color+'88'}},(p.name||'?')[0].toUpperCase()),
                     React.createElement('div',{style:{position:'absolute',bottom:6,left:8,display:'inline-flex',alignItems:'center',gap:4,background:c.color+'dd',borderRadius:20,padding:'2px 8px'}},
                       React.createElement('span',{style:{fontSize:9,color:'#fff',fontWeight:700,letterSpacing:.5}}),c.label
