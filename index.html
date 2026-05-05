@@ -1396,7 +1396,7 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
   const [panelOpen,setPanelOpen]=useState(window.innerWidth>768);
   const [zoom,setZoom]=useState(8);
 
-  const filtered=useMemo(()=>profiles.filter(p=>!p.hidden&&p.name&&p.muni).filter(p=>{
+  const filtered=useMemo(()=>profiles.filter(p=>!p.hidden&&p.name).filter(p=>{
     const mc=catFilter==='all'||p.cat===catFilter;
     const mm=muniFilter==='all'||p.muni===muniFilter;
     const q=queryFilter.toLowerCase();
@@ -1525,8 +1525,12 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
     markersRef.current.forEach(m=>{try{if(m&&m.marker&&m.marker.remove)m.marker.remove();}catch(e){}});
     markersRef.current=[];
     filtered.forEach(profile=>{
-      if(!profile||!profile.name)return;/* skip invalid profiles */
-      const muni=MUNIS58.find(m=>m.id===profile.muni)||MUNIS58[0];/* fallback to Zacatecas */
+      if(!profile||!profile.name)return;
+      /* Assign default muni if missing */
+      if(!profile.muni||!MUNIS58.find(m=>m.id===profile.muni)){
+        profile={...profile,muni:'zac'};
+      }
+      const muni=MUNIS58.find(m=>m.id===profile.muni)||MUNIS58[0];
       const seed=(profile.id.charCodeAt(0)||65)*13+(profile.id.charCodeAt(1)||65)*7;
       const dlat=(((seed*17)%100)/100-.5)*.007,dlng=(((seed*31)%100)/100-.5)*.011;
       const lat=profile.lat||(muni.lat+dlat),lng=profile.lng||(muni.lng+dlng);
@@ -1907,7 +1911,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
   },[profiles]);
   const allContent=useMemo(()=>{
     /* Sort profiles newest first (prioritize recent registrations) */
-    const sorted=[...profiles].filter(p=>p&&p.name).sort((a,b)=>(b.createdAt||b.joinedAt||'').localeCompare(a.createdAt||a.joinedAt||''));
+    const sorted=[...profiles].filter(p=>p&&p.name&&!p.hidden).sort((a,b)=>(b.createdAt||b.joinedAt||'').localeCompare(a.createdAt||a.joinedAt||''));
     const items=[];
     /* First: add NEW profiles (no portfolio yet) as profile cards */
     sorted.slice(0,8).forEach(p=>{
@@ -2998,11 +3002,11 @@ function App(){
                 if(idx===-1){
                   updated.unshift({
                     id:'auto_'+u.id,userId:u.id,
-                    name:u.name||u.email?.split('@')[0]||'Usuario',
+                    name:u.name||u.displayName||u.email?.split('@')[0]||'Usuario',
                     cat:u.cat||'artista',cats:u.cats||[u.cat||'artista'],
                     email:u.email||'',phone:u.phone||'',
                     ig:u.ig||'',web:u.web||'',
-                    bio:'',sobre:'',tags:[],muni:'zac',cp:'',
+                    bio:'',sobre:'',tags:[],muni:u.muni||'zac',cp:u.cp||'',
                     photo:u.photo||null,portfolio:[],convocatorias:[],proyectos:[],
                     status:'approved',approvedAt:fmtDate(),verified:true,
                     isDemo:false,isAutoProfile:true,
@@ -3125,12 +3129,17 @@ function App(){
         console.log('users collection:',usersSnap.size,'docs');
       }catch(e1){console.warn('Could not read users collection:',e1.message);}
 
-      /* Step 3: Read from nodo_pending collection (fallback registrations) */
+      /* 4. Read nodo_pending — fallback registrations */
       try{
         const pendSnap=await _db.collection('nodo_pending').get();
-        pendSnap.docs.forEach(d=>addIfMissing({...d.data(),id:d.id}));
-        console.log('nodo_pending:',pendSnap.size,'docs');
-      }catch(e2){console.warn('Could not read nodo_pending:',e2.message);}
+        console.log('nodo_pending:',pendSnap.size);
+        pendSnap.docs.forEach(d=>{
+          const u={...d.data(),id:d.id};
+          if(!u.name&&!u.email)return;
+          const exists=allProfiles.findIndex(p=>p.userId===d.id||(p.email&&p.email===u.email));
+          if(exists===-1)allProfiles.push({...u,status:'approved',verified:true,hidden:false,muni:u.muni||'zac'});
+        });
+      }catch(e2){console.warn('nodo_pending read error:',e2.message);}
 
       /* Step 4: Read nodo/users (app's own user list) */
       try{
@@ -3161,21 +3170,46 @@ function App(){
   ══════════════════════════════════════════════════════ */
   const recoverPhotos=async()=>{
     if(!_fbReady||!_db){showToast('Firebase no disponible');return;}
-    showToast('⏳ Recuperando todo desde Firebase...');
+    showToast('⏳ Recuperando TODO el histórico...');
     try{
-      /* 1. Read nodo/profiles directly */
-      const snap=await _db.collection('nodo').doc('profiles').get();
-      let allProfiles=snap.exists?(snap.data().v||[]):[];
-      console.log('nodo/profiles profiles:',allProfiles.length);
+      /* 1. Start with ALL 20 demo profiles as base */
+      let allProfiles=[...DEMO_PROFILES];
+      console.log('Base: DEMO_PROFILES',DEMO_PROFILES.length);
 
-      /* 2. Read users/{uid} collection — get name/email/phone/cat */
+      /* 2. Read nodo/profiles — main store */
+      const snap=await _db.collection('nodo').doc('profiles').get();
+      const fbProfiles=snap.exists?(snap.data().v||[]):[];
+      console.log('Firebase nodo/profiles:',fbProfiles.length);
+      fbProfiles.forEach(p=>{
+        if(!p||!p.name)return;
+        const exists=allProfiles.findIndex(x=>x.id===p.id||x.userId===p.userId||(x.email&&x.email===p.email));
+        if(exists===-1){allProfiles.push(p);}
+        else{
+          /* Merge keeping richest data */
+          const ex=allProfiles[exists];
+          allProfiles[exists]={
+            ...ex,...p,
+            photo:p.photo||ex.photo||null,
+            bio:p.bio&&p.bio.length>0?p.bio:ex.bio||'',
+            ig:p.ig||ex.ig||'',phone:p.phone||ex.phone||'',
+            web:p.web||ex.web||'',sobre:p.sobre||ex.sobre||'',
+            portfolio:[...(p.portfolio||[]),...(ex.portfolio||[])].filter((x,i,a)=>a.findIndex(y=>y.url===x.url)===i).slice(0,20),
+            convocatorias:[...(p.convocatorias||[]),...(ex.convocatorias||[])],
+            proyectos:[...(p.proyectos||[]),...(ex.proyectos||[])],
+          };
+        }
+      });
+
+      /* 3. Read users/{uid} collection — all registered users */
       try{
         const uSnap=await _db.collection('users').get();
+        console.log('Firebase users:',uSnap.size);
         uSnap.docs.forEach(d=>{
           const u={...d.data(),id:d.id};
-          if(!u.name&&!u.email)return;
+          if(!u.name&&!u.email&&!u.displayName)return;
+          const uName=u.name||u.displayName||u.email?.split('@')[0]||'Usuario';
           const exists=allProfiles.findIndex(p=>
-            p.userId===d.id||p.id==='reg_'+d.id||p.id==='sync_'+d.id||
+            p.userId===d.id||p.id==='reg_'+d.id||p.id==='sync_'+d.id||p.id==='auto_'+d.id||
             (p.email&&u.email&&p.email===u.email)
           );
           if(exists===-1){
@@ -3244,7 +3278,18 @@ function App(){
       let clean=[...seen.values()];/* NEVER filter — keep ALL profiles including test ones */
 
       /* 4. Auto-approve all pending */
-      clean=clean.map(p=>p.status==='pending'?{...p,status:'approved',approvedAt:p.approvedAt||fmtDate(),verified:true}:p);
+      clean=clean.map(p=>({
+        ...p,
+        /* Ensure required fields always present */
+        muni:p.muni||'zac',
+        cat:p.cat||'artista',
+        cats:p.cats||(p.cat?[p.cat]:['artista']),
+        name:p.name||p.displayName||p.email?.split('@')[0]||'Usuario',
+        status:p.status==='pending'?'approved':p.status||'approved',
+        approvedAt:p.approvedAt||fmtDate(),
+        verified:p.verified!==false,
+        hidden:p.hidden===true,/* only hidden if explicitly set */
+      }));
 
       /* 5. Migrate base64 photos to Firebase Storage (frees Firestore space) */
       let migrated=0;
