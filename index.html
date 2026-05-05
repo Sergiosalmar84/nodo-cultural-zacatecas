@@ -1284,7 +1284,7 @@ const ShareModal=({p,onClose})=>{
     El('div',{className:'modal-card fadein',style:{maxWidth:440}},
       El('button',{className:'modal-close',onClick:onClose},El(Ic,{n:'x',size:15,color:'var(--txts)'})),
       /* Profile mini card */
-      El('div',{style:{background:`linear-gradient(135deg,${p.cg?.[0]||cat.color+'33'},${p.cg?.[1]||'#09080a'})`,borderRadius:16,padding:'20px 20px 16px',marginBottom:18,position:'relative',overflow:'hidden'}},
+      El('div',{style:{background:'linear-gradient(135deg,'+(p.cg&&p.cg[0]?p.cg[0]:cat.color+'33')+','+(p.cg&&p.cg[1]?p.cg[1]:'#09080a')+')',borderRadius:16,padding:'20px 20px 16px',marginBottom:18,position:'relative',overflow:'hidden'}},
         El('div',{style:{position:'absolute',inset:0,backgroundImage:'radial-gradient(circle,rgba(255,255,255,.06) 1px,transparent 1px)',backgroundSize:'20px 20px'}}),
         El('div',{style:{position:'relative',display:'flex',alignItems:'center',gap:14}},
           El(Av,{p,size:56}),
@@ -2932,10 +2932,13 @@ function App(){
         if(snap.exists){
           const data=snap.data();
           if(data&&data.v&&Array.isArray(data.v)){
+            /* Auto-approve any pending profiles silently */
+            const autoPassed=data.v.map(p=>p.status==='pending'?{...p,status:'approved',approvedAt:p.approvedAt||fmtDate(),verified:true}:p);
+            const changed=autoPassed.some((p,i)=>p.status!==data.v[i]?.status);
+            if(changed)_db.collection('nodo').doc('profiles').set({v:autoPassed,ts:Date.now()}).catch(()=>{});
             setProfiles(prev=>{
-              /* Only update if data actually changed */
-              if(JSON.stringify(prev)===JSON.stringify(data.v))return prev;
-              return data.v;
+              if(JSON.stringify(prev)===JSON.stringify(autoPassed))return prev;
+              return autoPassed;
             });
           }
         }
