@@ -831,7 +831,16 @@ const SafeImg=({src,alt,style,className})=>{
 const Av=({p,size=44,onClick})=>{
   const c=catInfo(getCatId(p));
   const s={width:size,height:size,borderRadius:'50%',flexShrink:0,border:'2px solid '+c.color+'55',cursor:onClick?'pointer':'default',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',background:'linear-gradient(135deg,'+c.color+'25,'+c.color+'0a)',color:c.color,fontSize:Math.round(size*.33),fontFamily:'Playfair Display,serif',fontWeight:700};
-  if(p.photo)return React.createElement('div',{style:s,onClick},React.createElement('img',{src:p.photo,style:{width:'100%',height:'100%',objectFit:'cover'}}));
+  if(p.photo)return React.createElement('div',{style:s,onClick},
+    React.createElement('img',{
+      src:p.photo,
+      alt:p.name,
+      style:{width:'100%',height:'100%',objectFit:'cover'},
+      onError:e=>{e.target.style.display='none';e.target.nextSibling&&(e.target.nextSibling.style.display='flex');},
+      loading:'lazy'
+    }),
+    React.createElement('span',{style:{display:'none',width:'100%',height:'100%',alignItems:'center',justifyContent:'center',fontSize:Math.round(size*.33),fontFamily:'Playfair Display,serif',fontWeight:700}},initials(p.name))
+  );
   return React.createElement('div',{style:s,onClick},initials(p.name));
 };
 const Badge=({cat,sm})=>{const c=catInfo(cat);return React.createElement('span',{className:'cat-badge',style:{background:c.color+'18',border:'1px solid '+c.color+'35',color:c.color,padding:sm?'1px 8px':'3px 11px',fontSize:sm?10:12}},c.label);};
@@ -1394,7 +1403,7 @@ const MapPage=({profiles,go,setProf,setOpenChatWith,currentUser})=>{
       <div style="padding:0 16px 16px;">
         <div style="display:flex;align-items:center;gap:12px;margin-top:10px;width:100%;">
           <div style="width:38px;height:38px;border-radius:50%;background:${c.color}22;border:2px solid ${c.color}55;color:${c.color};display:flex;align-items:center;justify-content:center;font-family:'museo-sans','freight-display-pro','Playfair Display',sans-serif;font-weight:700;font-size:13px;flex-shrink:0;overflow:hidden;">
-            ${profile.photo?`<img src="${profile.photo}" style="width:100%;height:100%;object-fit:cover;"/>`:(profile.name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase())}
+            ${profile.photo?`<img src="${profile.photo}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextSibling&&(this.nextSibling.style.display='flex');" loading="lazy"/>`:(profile.name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase())}
           </div>
           <div style="flex:1;min-width:0;padding-bottom:2px;">
             <div style="font-family:'museo-sans','freight-display-pro','Playfair Display',sans-serif;font-size:15px;font-weight:700;color:#111827;line-height:1.3;margin-top:8px;word-break:break-word;overflow-wrap:break-word;white-space:normal;">${profile.name}</div>
@@ -2567,7 +2576,7 @@ const AutoSync=({syncFirebaseUsers,profiles})=>{
   },[]);
   return null;
 };
-const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onApprove,onHide,onBlock,onDeleteDemos,forceReloadProfiles,syncFirebaseUsers,onSendAnnouncement,showToast})=>{
+const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onDelete,onApprove,onHide,onBlock,onDeleteDemos,forceReloadProfiles,recoverPhotos,syncFirebaseUsers,onSendAnnouncement,showToast})=>{
   const [adminTab,setAdminTab]=useState('dashboard');
   const [emailSubject,setEmailSubject]=useState('');const [emailBody,setEmailBody]=useState('');const [emailType,setEmailType]=useState('convocatoria');const [recipients,setRecipients]=useState([]);const [recInput,setRecInput]=useState('');const [sendAll,setSendAll]=useState(true);const [selectedUsers,setSelectedUsers]=useState([]);const [sending,setSending]=useState(false);
   const [filterCat,setFilterCat]=useState('all');const [filterMuni,setFilterMuni]=useState('all');
@@ -2697,6 +2706,9 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
               React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},profiles.length+' perfiles totales'),
               React.createElement('button',{onClick:forceReloadProfiles,style:{padding:'5px 12px',border:'1px solid var(--brd)',borderRadius:7,background:'var(--bgch)',color:'var(--txts)',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
                 React.createElement(Ic,{n:'refresh',size:12}),'Actualizar'
+              ),
+              React.createElement('button',{onClick:recoverPhotos,title:'Recupera fotos perdidas desde Firebase',style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#7c3aed,#5b21b6)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
+                '🖼 Recuperar fotos'
               ),
               React.createElement('button',{onClick:syncFirebaseUsers,style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#2a7a6e,#1a5a4e)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
                 '🔄 Importar desde Firebase'
@@ -2993,11 +3005,22 @@ function App(){
         if(!u||(!(u.name||u.email)))return;
         const id=u.id||u.uid||'';
         const em=u.email||'';
-        const has=newProfiles.some(p=>
+        /* Check if profile already exists */
+        const existingIdx=newProfiles.findIndex(p=>
           (id&&(p.userId===id||p.id==='sync_'+id||p.id==='reg_'+id))||
-          (em&&p.email===em)
+          (em&&p.email&&p.email===em)
         );
-        if(!has){newProfiles.unshift(makeProfile(u));added++;}
+        if(existingIdx===-1){
+          /* New user — create minimal profile */
+          newProfiles.unshift(makeProfile(u));added++;
+        } else {
+          /* Existing profile — only update if it's missing critical fields, NEVER overwrite photo */
+          const existing=newProfiles[existingIdx];
+          if(!existing.name&&u.name)newProfiles[existingIdx]={...existing,name:u.name};
+          if(!existing.email&&u.email)newProfiles[existingIdx]={...existing,email:u.email};
+          if(!existing.phone&&u.phone)newProfiles[existingIdx]={...existing,phone:u.phone};
+          /* NEVER touch photo — keep what's in Firestore */
+        }
       };
 
       /* Step 2: Read from users/{uid} collection */
@@ -3036,6 +3059,31 @@ function App(){
       console.error('Sync main error:',mainErr);
       showToast('⚠ Error: '+mainErr.message+' — revisa la consola');
     }
+  };
+  /* ── PHOTO RECOVERY: merge photos from Firestore into current profiles ── */
+  const recoverPhotos=async()=>{
+    if(!_fbReady||!_db){showToast('Firebase no disponible');return;}
+    showToast('⏳ Recuperando fotos desde Firebase...');
+    try{
+      const snap=await _db.collection('nodo').doc('profiles').get();
+      if(!snap.exists){showToast('No hay datos en Firebase');return;}
+      const fbProfiles=snap.data().v||[];
+      let recovered=0;
+      /* Merge: for each profile in Firebase that has a photo, ensure local state has it */
+      const merged=profiles.map(local=>{
+        const fb=fbProfiles.find(p=>p.id===local.id||p.userId===local.userId||(p.email&&p.email===local.email));
+        if(fb&&fb.photo&&!local.photo){recovered++;return{...local,photo:fb.photo};}
+        if(fb&&fb.portfolio&&fb.portfolio.length>0&&(!local.portfolio||local.portfolio.length===0)){recovered++;return{...local,portfolio:fb.portfolio};}
+        return local;
+      });
+      /* Also add any profiles from Firebase not in local state */
+      fbProfiles.forEach(fb=>{
+        if(!merged.find(p=>p.id===fb.id)){merged.push(fb);}
+      });
+      setProfiles(merged);
+      await _db.collection('nodo').doc('profiles').set({v:merged,ts:Date.now()});
+      showToast(recovered>0?'✅ '+recovered+' foto(s) recuperada(s)':'✅ Fotos ya estaban actualizadas ('+merged.length+' perfiles)');
+    }catch(e){showToast('Error: '+e.message);}
   };
   const forceReloadProfiles=async()=>{
     if(!_fbReady)return;
@@ -3189,7 +3237,7 @@ function App(){
       view==='create'&&React.createElement(CreatePage,{go,onAdd:addProfile,showToast,currentUser,onAuthClick,profiles}),
       view==='chat'&&React.createElement(ChatPage,{profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,go}),
       view==='terms'&&React.createElement(TermsPage,{go}),
-      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onApprove,onHide,onBlock,onDeleteDemos,forceReloadProfiles,syncFirebaseUsers,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:onVerify,
+      view==='admin'&&React.createElement(AdminPage,{profiles,users,currentUser,onAuthClick,setProf:setSelProf,go,showToast,onApprove,onHide,onBlock,onDeleteDemos,forceReloadProfiles,recoverPhotos,syncFirebaseUsers,onSendAnnouncement:ann=>setAnnouncement(ann),onVerify:onVerify,
       onDelete:onDelete,
       onApprove:onApprove
       }),
