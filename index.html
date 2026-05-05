@@ -846,8 +846,36 @@ const Av=({p,size=44,onClick})=>{
 const Badge=({cat,sm})=>{const c=catInfo(cat);return React.createElement('span',{className:'cat-badge',style:{background:c.color+'18',border:'1px solid '+c.color+'35',color:c.color,padding:sm?'1px 8px':'3px 11px',fontSize:sm?10:12}},c.label);};
 const StatPill=({icon,val,label})=>React.createElement('div',{className:'stat-pill'},React.createElement(Ic,{n:icon,size:13,color:'#9b8e7e'}),React.createElement('span',null,React.createElement('strong',null,val),' ',label));
 const Toast=({msg,onClose})=>{useEffect(()=>{const t=setTimeout(onClose,2800);return()=>clearTimeout(t);},[]);return React.createElement('div',{className:'toast'},msg);};
-const PhotoUpload=({photo,onChange,size=80,label='Foto de perfil'})=>{
+const PhotoUpload=({photo,onChange,size=80,label='Foto de perfil',hint=true})=>{
   const uid='pu_'+Math.random().toString(36).slice(2);
+  /* Validate and compress image before passing to onChange */
+  const handleFile=(file)=>{
+    if(!file)return;
+    const MAX_MB=10;/* Allow up to 10MB input */
+    if(file.size>MAX_MB*1024*1024){alert('Máximo '+MAX_MB+'MB por imagen.');return;}
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+      const img=new Image();
+      img.onload=()=>{
+        /* Recommend at least 400x400 but NEVER reject */
+        if((img.width<400||img.height<400)&&hint){
+          console.info('Foto pequeña: ',img.width+'x'+img.height+'. Recomendado mínimo 400x400px.');
+        }
+        /* Compress to max 1200px maintaining aspect ratio */
+        const maxDim=1200;
+        const scale=Math.min(1,maxDim/Math.max(img.width,img.height));
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.round(img.width*scale);
+        canvas.height=Math.round(img.height*scale);
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        const compressed=canvas.toDataURL('image/jpeg',0.85);
+        onChange(compressed);
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
   return React.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:7}},
     React.createElement('label',{htmlFor:uid,style:{width:size,height:size,borderRadius:'50%',border:'2px dashed var(--brd)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all .2s',position:'relative',overflow:'hidden',background:'var(--bg2)',WebkitTapHighlightColor:'transparent'}},
       photo&&React.createElement('img',{src:photo,style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover'}}),
@@ -2374,7 +2402,7 @@ const CreatePage=({go,onAdd,showToast,currentUser,onAuthClick,profiles})=>{
             React.createElement('div',null,
               React.createElement('label',{className:'field-label'},'Portafolio — hasta 4 fotos'),
               React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}},
-                [0,1,2,3].map(ii=>{const ph=(f.portfolio||[])[ii];return React.createElement('div',{key:ii,onClick:()=>{const ip=document.createElement('input');ip.type='file';ip.accept='image/*';ip.onchange=ev=>{const fi=ev.target.files[0];if(!fi||fi.size>3145728)return;const rd=new FileReader();rd.onload=re=>{const ar=[...(f.portfolio||[null,null,null,null])];ar[ii]=re.target.result;upd('portfolio',ar);};rd.readAsDataURL(fi);};ip.click();},style:{aspectRatio:'1',borderRadius:9,border:'2px dashed '+(ph?'#f97316':'var(--brd)'),cursor:'pointer',background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:4,overflow:'hidden'}},ph?React.createElement('img',{src:ph,style:{width:'100%',height:'100%',objectFit:'cover'}}):React.createElement(React.Fragment,null,React.createElement(Ic,{n:'camera',size:18,color:'var(--brd)'}),React.createElement('span',{style:{fontSize:9,color:'var(--txtm)'}},'Foto '+(ii+1))));})
+                [0,1,2,3].map(ii=>{const ph=(f.portfolio||[])[ii];return React.createElement('div',{key:ii,onClick:()=>{const ip=document.createElement('input');ip.type='file';ip.accept='image/*';ip.onchange=ev=>{const fi=ev.target.files[0];if(!fi)return;/* No size limit — compress automatically */const rd=new FileReader();rd.onload=re=>{const ar=[...(f.portfolio||[null,null,null,null])];ar[ii]=re.target.result;upd('portfolio',ar);};rd.readAsDataURL(fi);};ip.click();},style:{aspectRatio:'1',borderRadius:9,border:'2px dashed '+(ph?'#f97316':'var(--brd)'),cursor:'pointer',background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:4,overflow:'hidden'}},ph?React.createElement('img',{src:ph,style:{width:'100%',height:'100%',objectFit:'cover'}}):React.createElement(React.Fragment,null,React.createElement(Ic,{n:'camera',size:18,color:'var(--brd)'}),React.createElement('span',{style:{fontSize:9,color:'var(--txtm)'}},'Foto '+(ii+1))));})
               )
             )
           )
@@ -3180,19 +3208,34 @@ function App(){
       /* 3. Deduplicate: keep the RICHEST profile per user (most fields filled) */
       const seen=new Map();
       allProfiles.forEach(p=>{
-        const key=p.userId||p.email||p.id;
-        if(!key)return;
+        /* Always use p.id as fallback — NEVER skip a profile */
+        const key=p.userId||p.email||p.id||('nk_'+Math.random());
         const existing=seen.get(key);
         if(!existing){seen.set(key,p);return;}
         /* Score: count filled fields */
         const score=(x)=>(x.photo?10:0)+(x.bio?.length>10?5:0)+(x.portfolio?.length||0)*3+(x.ig?2:0)+(x.phone?2:0)+(x.sobre?.length>5?2:0);
-        if(score(p)>score(existing))seen.set(key,{...existing,...p,photo:p.photo||existing.photo,bio:p.bio||existing.bio,ig:p.ig||existing.ig,phone:p.phone||existing.phone,portfolio:[...(p.portfolio||[]),...(existing.portfolio||[])].slice(0,10)});
-        else seen.set(key,{...p,...existing,photo:p.photo||existing.photo,bio:existing.bio||p.bio,ig:existing.ig||p.ig,phone:existing.phone||p.phone,portfolio:[...(existing.portfolio||[]),...(p.portfolio||[])].slice(0,10)});
+        /* Always merge both, keeping the richest fields */
+          seen.set(key,{
+            ...existing,...(score(p)>score(existing)?p:{}),
+            /* ALWAYS keep photo, bio, ig, phone from whichever has them */
+            photo:p.photo||existing.photo||null,
+            bio:(p.bio?.length||0)>(existing.bio?.length||0)?p.bio:existing.bio||p.bio||'',
+            ig:p.ig||existing.ig||'',
+            phone:p.phone||existing.phone||'',
+            web:p.web||existing.web||'',
+            sobre:p.sobre||existing.sobre||'',
+            tags:[...new Set([...(p.tags||[]),...(existing.tags||[])])],
+            portfolio:[...(p.portfolio||[]),...(existing.portfolio||[])].filter((item,i,arr)=>arr.findIndex(x=>x.url===item.url)===i).slice(0,10),
+            convocatorias:[...(p.convocatorias||[]),...(existing.convocatorias||[])].slice(0,20),
+            proyectos:[...(p.proyectos||[]),...(existing.proyectos||[])].slice(0,10),
+            /* Keep the verified/approved status */
+            status:'approved',approvedAt:p.approvedAt||existing.approvedAt||fmtDate(),verified:true,
+          });
       });
       /* Also keep profiles with no userId/email key */
       allProfiles.filter(p=>!p.userId&&!p.email).forEach(p=>seen.set(p.id,p));
 
-      let clean=[...seen.values()].filter(p=>!p.isDemo);
+      let clean=[...seen.values()];/* NEVER filter — keep ALL profiles including test ones */
 
       /* 4. Auto-approve all pending */
       clean=clean.map(p=>p.status==='pending'?{...p,status:'approved',approvedAt:p.approvedAt||fmtDate(),verified:true}:p);
@@ -3230,12 +3273,15 @@ function App(){
         await Promise.allSettled(migratePromises);
       }
 
-      /* 6. Save clean consolidated document to Firestore */
-      /* Strip base64 that failed migration to prevent document size issues */
+      /* 6. Save — NEVER modify photos, keep everything as-is */
       const toSave=clean.map(p=>({
         ...p,
-        photo:p.photo&&p.photo.length>500&&p.photo.startsWith('data:')?null:p.photo,/* remove huge base64 */
-        portfolio:(p.portfolio||[]).map(item=>({...item,url:item.url&&item.url.length>500&&item.url.startsWith('data:')?null:item.url})).filter(item=>item.url)
+        /* Ensure hidden is ONLY true if admin explicitly set it — never auto-hide */
+        hidden:p.hidden===true?true:false,
+        /* Auto-approve everything */
+        status:p.status==='pending'?'approved':p.status||'approved',
+        approvedAt:p.approvedAt||fmtDate(),
+        verified:p.verified!==false,
       }));
 
       await _db.collection('nodo').doc('profiles').set({v:toSave,ts:Date.now()});
