@@ -2569,10 +2569,10 @@ const ChatPage=({profiles,currentUser,onAuthClick,openChatWith,setOpenChatWith,g
 
 /* ── ADMIN PAGE ── */
 /* ── AUTO-SYNC component: runs syncFirebaseUsers once when profiles tab opens ── */
-const AutoSync=({syncFirebaseUsers,profiles})=>{
+const AutoSync=({syncFirebaseUsers,recoverPhotos,profiles})=>{
   const ran=React.useRef(false);
   useEffect(()=>{
-    if(!ran.current){ran.current=true;syncFirebaseUsers();}
+    if(!ran.current){ran.current=true;recoverPhotos();}/* Use mega recovery instead */
   },[]);
   return null;
 };
@@ -2689,7 +2689,7 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
       ),
       adminTab==='profiles'&&React.createElement(React.Fragment,null,
         /* Auto-sync on tab open */
-        React.createElement(AutoSync,{syncFirebaseUsers,profiles}),
+        React.createElement(AutoSync,{syncFirebaseUsers,recoverPhotos,profiles}),
       React.createElement('div',null,
         /* Pending approval banner */
         profiles.filter(p=>p.status==='pending'&&!p.isDemo).length>0&&React.createElement('div',{style:{background:'rgba(160,100,20,.08)',border:'1px solid rgba(160,100,20,.25)',borderRadius:12,padding:'12px 18px',marginBottom:18,display:'flex',alignItems:'center',gap:10}},
@@ -2941,6 +2941,67 @@ function App(){
 
   /* Profiles auto-save disabled — saved explicitly on each mutation to avoid race conditions */
   useEffect(()=>{if(loaded)DB.set('posts',posts,true);},[posts,loaded]);
+
+  /* Auto-recover profiles once on load — ensures no one is missing */
+  useEffect(()=>{
+    if(!loaded||!_fbReady)return;
+    const timer=setTimeout(async()=>{
+      try{
+        const snap=await _db.collection('nodo').doc('profiles').get();
+        if(snap.exists){
+          const data=snap.data();
+          if(data&&data.v&&Array.isArray(data.v)){
+            /* Read users collection to fill any gaps */
+            try{
+              const uSnap=await _db.collection('users').get();
+              const fbUsers=uSnap.docs.map(d=>({...d.data(),id:d.id}));
+              const current=data.v;
+              let changed=false;
+              const updated=[...current];
+              fbUsers.forEach(u=>{
+                if(!u.name&&!u.email)return;
+                const idx=updated.findIndex(p=>p.userId===u.id||(p.email&&p.email===u.email));
+                if(idx===-1){
+                  updated.unshift({
+                    id:'auto_'+u.id,userId:u.id,
+                    name:u.name||u.email?.split('@')[0]||'Usuario',
+                    cat:u.cat||'artista',cats:u.cats||[u.cat||'artista'],
+                    email:u.email||'',phone:u.phone||'',
+                    ig:u.ig||'',web:u.web||'',
+                    bio:'',sobre:'',tags:[],muni:'zac',cp:'',
+                    photo:u.photo||null,portfolio:[],convocatorias:[],proyectos:[],
+                    status:'approved',approvedAt:fmtDate(),verified:true,
+                    isDemo:false,isAutoProfile:true,
+                    createdAt:u.joinedAt||fmtDate(),
+                    conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{}
+                  });
+                  changed=true;
+                } else {
+                  /* Fill missing fields */
+                  const p=updated[idx];
+                  const merged={...p,
+                    phone:p.phone||u.phone||'',
+                    ig:p.ig||u.ig||'',
+                    email:p.email||u.email||'',
+                    photo:p.photo||u.photo||null,
+                    status:p.status==='pending'?'approved':p.status,
+                    verified:p.verified!==false,
+                  };
+                  if(JSON.stringify(merged)!==JSON.stringify(p)){updated[idx]=merged;changed=true;}
+                }
+              });
+              if(changed){
+                setProfiles(updated);
+                await _db.collection('nodo').doc('profiles').set({v:updated,ts:Date.now()});
+                console.log('Auto-sync: updated',updated.length,'profiles');
+              }
+            }catch(e){console.warn('Auto-sync users error:',e);}
+          }
+        }
+      }catch(e){console.warn('Auto-recovery error:',e);}
+    },3000);/* Wait 3s after load */
+    return()=>clearTimeout(timer);
+  },[loaded]);
   useEffect(()=>{if(loaded&&users.length>0)DB.set('users',users,true);},[users,loaded]);
 
   /* ── Real-time Firestore listener — starts immediately, no dependency on loaded ── */
@@ -3060,30 +3121,132 @@ function App(){
       showToast('⚠ Error: '+mainErr.message+' — revisa la consola');
     }
   };
-  /* ── PHOTO RECOVERY: merge photos from Firestore into current profiles ── */
+  /* ══════════════════════════════════════════════════════
+     MEGA RECOVERY: reads ALL Firestore sources, deduplicates,
+     migrates base64 photos to Storage, saves clean document
+  ══════════════════════════════════════════════════════ */
   const recoverPhotos=async()=>{
     if(!_fbReady||!_db){showToast('Firebase no disponible');return;}
-    showToast('⏳ Recuperando fotos desde Firebase...');
+    showToast('⏳ Recuperando todo desde Firebase...');
     try{
+      /* 1. Read nodo/profiles directly */
       const snap=await _db.collection('nodo').doc('profiles').get();
-      if(!snap.exists){showToast('No hay datos en Firebase');return;}
-      const fbProfiles=snap.data().v||[];
-      let recovered=0;
-      /* Merge: for each profile in Firebase that has a photo, ensure local state has it */
-      const merged=profiles.map(local=>{
-        const fb=fbProfiles.find(p=>p.id===local.id||p.userId===local.userId||(p.email&&p.email===local.email));
-        if(fb&&fb.photo&&!local.photo){recovered++;return{...local,photo:fb.photo};}
-        if(fb&&fb.portfolio&&fb.portfolio.length>0&&(!local.portfolio||local.portfolio.length===0)){recovered++;return{...local,portfolio:fb.portfolio};}
-        return local;
+      let allProfiles=snap.exists?(snap.data().v||[]):[];
+      console.log('nodo/profiles profiles:',allProfiles.length);
+
+      /* 2. Read users/{uid} collection — get name/email/phone/cat */
+      try{
+        const uSnap=await _db.collection('users').get();
+        uSnap.docs.forEach(d=>{
+          const u={...d.data(),id:d.id};
+          if(!u.name&&!u.email)return;
+          const exists=allProfiles.findIndex(p=>
+            p.userId===d.id||p.id==='reg_'+d.id||p.id==='sync_'+d.id||
+            (p.email&&u.email&&p.email===u.email)
+          );
+          if(exists===-1){
+            /* New user — create minimal profile */
+            allProfiles.push({
+              id:'sync_'+d.id,userId:d.id,
+              name:u.name||u.displayName||u.email?.split('@')[0]||'Usuario',
+              cat:u.cat||'artista',cats:u.cats||[u.cat||'artista'],
+              email:u.email||'',phone:u.phone||'',
+              bio:'',sobre:'',tags:[],muni:'zac',cp:'',
+              photo:u.photo||u.photoURL||null,portfolio:[],convocatorias:[],proyectos:[],
+              ig:u.ig||'',web:u.web||'',
+              status:'approved',approvedAt:fmtDate(),verified:true,
+              isDemo:false,isAutoProfile:true,
+              createdAt:u.joinedAt||u.createdAt||fmtDate(),
+              conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{}
+            });
+          } else {
+            /* Merge missing fields WITHOUT overwriting photo or bio */
+            const p=allProfiles[exists];
+            allProfiles[exists]={
+              ...p,
+              name:p.name||u.name||'',
+              email:p.email||u.email||'',
+              phone:p.phone||u.phone||'',
+              ig:p.ig||u.ig||'',
+              photo:p.photo||u.photo||u.photoURL||null,
+              status:p.status==='pending'?'approved':p.status,
+              approvedAt:p.approvedAt||fmtDate(),
+              verified:p.verified!==false,
+            };
+          }
+        });
+      }catch(e2){console.warn('Could not read users collection:',e2);}
+
+      /* 3. Deduplicate: keep the RICHEST profile per user (most fields filled) */
+      const seen=new Map();
+      allProfiles.forEach(p=>{
+        const key=p.userId||p.email||p.id;
+        if(!key)return;
+        const existing=seen.get(key);
+        if(!existing){seen.set(key,p);return;}
+        /* Score: count filled fields */
+        const score=(x)=>(x.photo?10:0)+(x.bio?.length>10?5:0)+(x.portfolio?.length||0)*3+(x.ig?2:0)+(x.phone?2:0)+(x.sobre?.length>5?2:0);
+        if(score(p)>score(existing))seen.set(key,{...existing,...p,photo:p.photo||existing.photo,bio:p.bio||existing.bio,ig:p.ig||existing.ig,phone:p.phone||existing.phone,portfolio:[...(p.portfolio||[]),...(existing.portfolio||[])].slice(0,10)});
+        else seen.set(key,{...p,...existing,photo:p.photo||existing.photo,bio:existing.bio||p.bio,ig:existing.ig||p.ig,phone:existing.phone||p.phone,portfolio:[...(existing.portfolio||[]),...(p.portfolio||[])].slice(0,10)});
       });
-      /* Also add any profiles from Firebase not in local state */
-      fbProfiles.forEach(fb=>{
-        if(!merged.find(p=>p.id===fb.id)){merged.push(fb);}
-      });
-      setProfiles(merged);
-      await _db.collection('nodo').doc('profiles').set({v:merged,ts:Date.now()});
-      showToast(recovered>0?'✅ '+recovered+' foto(s) recuperada(s)':'✅ Fotos ya estaban actualizadas ('+merged.length+' perfiles)');
-    }catch(e){showToast('Error: '+e.message);}
+      /* Also keep profiles with no userId/email key */
+      allProfiles.filter(p=>!p.userId&&!p.email).forEach(p=>seen.set(p.id,p));
+
+      let clean=[...seen.values()].filter(p=>!p.isDemo);
+
+      /* 4. Auto-approve all pending */
+      clean=clean.map(p=>p.status==='pending'?{...p,status:'approved',approvedAt:p.approvedAt||fmtDate(),verified:true}:p);
+
+      /* 5. Migrate base64 photos to Firebase Storage (frees Firestore space) */
+      let migrated=0;
+      if(_storage){
+        const migratePromises=clean.map(async(p,i)=>{
+          if(p.photo&&p.photo.startsWith('data:image')){
+            try{
+              const ref=_storage.ref('profiles/'+( p.userId||p.id)+'/avatar.jpg');
+              await ref.putString(p.photo,'data_url');
+              const url=await ref.getDownloadURL();
+              clean[i]={...p,photo:url};
+              migrated++;
+            }catch(e){/* keep base64 */}
+          }
+          /* Migrate portfolio photos too */
+          if(p.portfolio&&p.portfolio.length>0){
+            const newPortfolio=await Promise.all((p.portfolio||[]).map(async(item,j)=>{
+              if(item.url&&item.url.startsWith('data:image')){
+                try{
+                  const ref=_storage.ref('profiles/'+(p.userId||p.id)+'/portfolio_'+j+'.jpg');
+                  await ref.putString(item.url,'data_url');
+                  const url=await ref.getDownloadURL();
+                  migrated++;
+                  return{...item,url};
+                }catch(e){return item;}
+              }
+              return item;
+            }));
+            clean[i]={...clean[i],portfolio:newPortfolio};
+          }
+        });
+        await Promise.allSettled(migratePromises);
+      }
+
+      /* 6. Save clean consolidated document to Firestore */
+      /* Strip base64 that failed migration to prevent document size issues */
+      const toSave=clean.map(p=>({
+        ...p,
+        photo:p.photo&&p.photo.length>500&&p.photo.startsWith('data:')?null:p.photo,/* remove huge base64 */
+        portfolio:(p.portfolio||[]).map(item=>({...item,url:item.url&&item.url.length>500&&item.url.startsWith('data:')?null:item.url})).filter(item=>item.url)
+      }));
+
+      await _db.collection('nodo').doc('profiles').set({v:toSave,ts:Date.now()});
+      setProfiles(toSave);
+
+      showToast('✅ '+toSave.length+' perfiles'+(migrated>0?' · '+migrated+' fotos migradas':''));
+      console.log('Recovery complete:',toSave.length,'profiles,',migrated,'photos migrated');
+    }catch(e){
+      console.error('Recovery error:',e);
+      showToast('⚠ Error: '+e.message);
+    }
   };
   const forceReloadProfiles=async()=>{
     if(!_fbReady)return;
