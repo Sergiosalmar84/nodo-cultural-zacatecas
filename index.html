@@ -2849,21 +2849,77 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
                 '🔄 Recuperar todo'
               ),
               React.createElement('button',{onClick:async()=>{
-                if(!_fbReady||!_storage){showToast('Storage no disponible');return;}
-                showToast('⏳ Buscando fotos en Storage...');
+                if(!_fbReady||!_storage||!_db){showToast('Firebase no disponible');return;}
+                showToast('⏳ Escaneando Storage y usuarios...');
                 let found=0;
-                const profSnap=await _db.collection('nodo').doc('profiles').get();
-                const profs=profSnap.exists?(profSnap.data().v||[]):[];
-                const updated=await Promise.all(profs.map(async p=>{
-                  if(p.photo&&!p.photo.startsWith('data:'))return p;/* already has URL */
+                try{
+                  /* Get current profiles */
+                  const profSnap=await _db.collection('nodo').doc('profiles').get();
+                  let profs=profSnap.exists?(profSnap.data().v||[]):[];
+
+                  /* Step 1: Read users collection — they have photo URLs from Google/Facebook login */
                   try{
-                    const url=await _storage.ref('profiles/'+(p.userId||p.id)+'/avatar.jpg').getDownloadURL();
-                    found++;return{...p,photo:url};
-                  }catch{return p;}/* no photo in Storage */
-                }));
-                await _db.collection('nodo').doc('profiles').set({v:updated,ts:Date.now()});
-                setProfiles(updated);
-                showToast(found>0?'✅ '+found+' foto(s) recuperadas de Storage':'ℹ️ No hay fotos en Storage — pídalas a los usuarios');
+                    const uSnap=await _db.collection('users').get();
+                    uSnap.docs.forEach(d=>{
+                      const u=d.data();
+                      if(!u.photo&&!u.photoURL)return;
+                      const photoUrl=u.photo||u.photoURL;
+                      const idx=profs.findIndex(p=>p.userId===d.id||(p.email&&p.email===u.email));
+                      if(idx!==-1&&!profs[idx].photo){
+                        profs[idx]={...profs[idx],photo:photoUrl};
+                        found++;
+                      }
+                    });
+                  }catch(e){console.warn('users read:',e);}
+
+                  /* Step 2: For profiles with photo URL already (firebasestorage), verify they still work */
+                  /* For profiles with null photo, try multiple Storage paths */
+                  const tryPaths=async(p)=>{
+                    const uid=p.userId||p.id||'';
+                    const paths=[
+                      'photos/'+uid,
+                      'profiles/'+uid+'/avatar.jpg',
+                      'profiles/'+uid+'.jpg',
+                      'avatars/'+uid+'.jpg',
+                      'users/'+uid+'/photo.jpg',
+                    ];
+                    for(const path of paths){
+                      try{
+                        const url=await _storage.ref(path).getDownloadURL();
+                        return url;
+                      }catch{}
+                    }
+                    return null;
+                  };
+
+                  /* Step 3: Try to get photos for profiles without photo */
+                  const updates=await Promise.all(profs.map(async p=>{
+                    if(p.photo&&(p.photo.startsWith('https://')||p.photo.startsWith('http://')))return p;
+                    const url=await tryPaths(p);
+                    if(url){found++;return{...p,photo:url};}
+                    return p;
+                  }));
+
+                  /* Step 4: Try to list files in photos/ and portfolio/ folders */
+                  try{
+                    const photosRef=_storage.ref('photos');
+                    const list=await photosRef.listAll();
+                    console.log('Photos in Storage:',list.items.length,'files');
+                    /* Match files to profiles by checking if profile has no photo */
+                    const noPhotoProfiles=updates.filter(p=>!p.photo);
+                    if(noPhotoProfiles.length>0&&list.items.length>0){
+                      showToast('📂 '+list.items.length+' archivos en Storage. Asócialos manualmente en cada perfil.');
+                    }
+                  }catch(e){console.warn('Storage list:',e);}
+
+                  /* Save updated profiles */
+                  await _db.collection('nodo').doc('profiles').set({v:updates,ts:Date.now()});
+                  setProfiles(updates);
+                  showToast(found>0?'✅ '+found+' foto(s) recuperada(s) y vinculadas':'ℹ️ Las fotos están en Storage pero los nombres de archivo no coinciden con los perfiles. Cada usuario debe volver a subir su foto desde "Editar perfil".');
+                }catch(e){
+                  console.error('Storage recovery error:',e);
+                  showToast('Error: '+e.message);
+                }
               },style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#059669,#047857)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
                 '📦 Recuperar de Storage'
               ),
