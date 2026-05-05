@@ -1171,7 +1171,7 @@ const ProfileRating=({p,currentUser,onUpdateProfile,onAuthClick})=>{
 
 
 /* ── HOME CAROUSEL ── */
-const HomeCarousel=({profiles,go,setProf})=>{
+const HomeCarousel=({profiles,go,setProf,refreshTick=0})=>{
   const [idx,setIdx]=useState(0);
   const [paused,setPaused]=useState(false);
   const timerRef=useRef(null);
@@ -1660,7 +1660,59 @@ const Landing=({onSelect})=>{
 /* ── AUTH MODAL ── */
 const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister})=>{
   const [tab,setTab]=useState(mode||'login');
-  const [email,setEmail]=useState('');const [pass,setPass]=useState('');const [name,setName]=useState('');const [confirm,setConfirm]=useState('');const [cat,setCat]=useState('');const [phone,setPhone]=useState('');const [err,setErr]=useState('');
+  const [email,setEmail]=useState('');const [pass,setPass]=useState('');const [name,setName]=useState('');const [confirm,setConfirm]=useState('');const [cat,setCat]=useState('');const [phone,setPhone]=useState('');const [err,setErr]=useState('');const [resetSent,setResetSent]=useState(false);const [socialLoading,setSocialLoading]=useState('');
+  const doResetPassword=async()=>{
+    setErr('');
+    if(!email.trim()){setErr('Escribe tu correo para recuperar la contraseña.');return;}
+    if(!_fbReady||!_auth){setErr('Firebase no disponible.');return;}
+    try{
+      await _auth.sendPasswordResetEmail(email.trim());
+      setResetSent(true);
+    }catch(e){
+      if(e.code==='auth/user-not-found')setErr('No existe cuenta con ese correo.');
+      else if(e.code==='auth/invalid-email')setErr('Correo inválido.');
+      else setErr('Error: '+e.message);
+    }
+  };
+
+  const doSocialLogin=async(provider)=>{
+    setErr('');setSocialLoading(provider);
+    if(!_fbReady||!_auth){setErr('Firebase no disponible.');return;}
+    try{
+      const providerObj=provider==='google'?window._googleProvider:window._facebookProvider;
+      if(!providerObj){setErr('Proveedor no disponible.');setSocialLoading('');return;}
+      const result=await _auth.signInWithPopup(providerObj);
+      const fbUser=result.user;
+      /* Check if user doc exists, create if not */
+      let uDoc=await _db.collection('users').doc(fbUser.uid).get();
+      let newU;
+      if(uDoc.exists){
+        newU={...uDoc.data(),id:fbUser.uid};
+      }else{
+        newU={id:fbUser.uid,email:fbUser.email||'',name:fbUser.displayName||fbUser.email?.split('@')[0]||'Usuario',role:'user',photo:fbUser.photoURL||null,cat:'artista',cats:['artista'],phone:'',joinedAt:fmtDate()};
+        await _db.collection('users').doc(fbUser.uid).set(newU);
+        /* Auto-create profile */
+        try{
+          const profRef=_db.collection('nodo').doc('profiles');
+          await _db.runTransaction(async tx=>{
+            const snap=await tx.get(profRef);
+            const existing=snap.exists?(snap.data().v||[]):[];
+            if(existing.some(p=>p.userId===fbUser.uid))return;
+            const autoP={id:'social_'+fbUser.uid,userId:fbUser.uid,name:newU.name,cat:'artista',cats:['artista'],email:newU.email,phone:'',bio:'',sobre:'',tags:[],muni:'zac',cp:'',photo:fbUser.photoURL||null,portfolio:[],convocatorias:[],proyectos:[],ig:'',web:'',status:'approved',approvedAt:fmtDate(),verified:true,isDemo:false,isAutoProfile:true,createdAt:fmtDate(),conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{},hidden:false};
+            tx.set(profRef,{v:[autoP,...existing],ts:Date.now()});
+          });
+          notifyAdmin('🆕 Nuevo registro ('+provider+'): '+newU.name,'Nombre: '+newU.name+'\nCorreo: '+newU.email+'\nVía: '+provider+'\n\nnodoart.mx');
+        }catch(e2){console.warn('Auto-profile social error:',e2);}
+      }
+      onLogin(newU);showToast('¡Bienvenido, '+newU.name+'!');onClose();
+      if(onAfterRegister)onAfterRegister(newU);
+    }catch(e){
+      if(e.code==='auth/popup-closed-by-user'){}/* user closed popup, no error */
+      else if(e.code==='auth/account-exists-with-different-credential')setErr('Ya existe una cuenta con ese correo. Inicia sesión con correo y contraseña.');
+      else setErr('Error: '+e.message);
+    }finally{setSocialLoading('');}
+  };
+
   const doLogin=async()=>{
     setErr('');if(!email.trim()||!pass.trim()){setErr('Completa todos los campos.');return;}
     if(email.trim()===ADMIN_EMAIL&&pass===ADMIN_PASS){
@@ -1693,7 +1745,10 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
       try{
         const cred=await _auth.createUserWithEmailAndPassword(email.trim(),pass);
         const uid=cred.user.uid;
-        newU={id:uid,email:email.trim(),name:name.trim(),role:'user',photo:null,cat:cat||'artista',phone:phone.trim(),joinedAt:fmtDate()};
+        newU={id:uid,email:email.trim(),name:name.trim(),role:'user',photo:null,
+          cat:cat||'artista',cats:cats&&cats.length>0?cats:[cat||'artista'],
+          phone:phone.trim(),joinedAt:fmtDate(),
+          ig:'',web:'',muni:'',cp:'',bio:'',sobre:''};
         await _db.collection('users').doc(uid).set(newU);
       }catch(e){
         setErr(e.code==='auth/email-already-in-use'?'Este correo ya está registrado.':e.code==='auth/invalid-email'?'Correo inválido.':'Error al crear cuenta: '+e.message);return;
@@ -1713,8 +1768,12 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
         await _db.runTransaction(async tx=>{
           const snap=await tx.get(profRef);
           const existing=snap.exists?(snap.data().v||[]):[];
-          /* Only add if not already there */
-          if(existing.some(p=>p.userId===newU.id||p.email===newU.email))return;
+          /* Only add if not already there — NEVER touch existing profiles */
+          const alreadyExists=existing.some(p=>
+            p.userId===newU.id||
+            (p.email&&newU.email&&p.email===newU.email)
+          );
+          if(alreadyExists)return;
           const autoProfile={
             id:'reg_'+newU.id,userId:newU.id,
             name:newU.name,cat:newU.cat||cat||'artista',cats:[newU.cat||cat||'artista'],
@@ -1754,6 +1813,40 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
   return React.createElement('div',{className:'modal-overlay',onClick:e=>{if(e.target===e.currentTarget)onClose();}},
     React.createElement('div',{className:'modal-card fadein'},
       React.createElement('button',{className:'modal-close',onClick:onClose},React.createElement(Ic,{n:'x',size:15,color:'#9b8e7e'})),
+      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:9,marginBottom:18}}),
+      /* Social login buttons */
+      React.createElement('div',{style:{display:'flex',gap:8,marginBottom:14}},
+        React.createElement('button',{
+          onClick:()=>doSocialLogin('google'),
+          disabled:!!socialLoading,
+          style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'10px 12px',borderRadius:10,border:'1px solid #e2e8f0',background:socialLoading==='google'?'#f8fafc':'#fff',color:'#374151',fontSize:13,fontWeight:600,cursor:'pointer',transition:'all .15s'}},
+          socialLoading==='google'
+            ?React.createElement('span',{className:'spin'})
+            :React.createElement('svg',{width:18,height:18,viewBox:'0 0 24 24'},
+                React.createElement('path',{fill:'#4285F4',d:'M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z'}),
+                React.createElement('path',{fill:'#34A853',d:'M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z'}),
+                React.createElement('path',{fill:'#FBBC05',d:'M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z'}),
+                React.createElement('path',{fill:'#EA4335',d:'M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z'})
+              ),
+          'Continuar con Google'
+        ),
+        React.createElement('button',{
+          onClick:()=>doSocialLogin('facebook'),
+          disabled:!!socialLoading,
+          style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'10px 12px',borderRadius:10,border:'none',background:socialLoading==='facebook'?'#1557b0':'#1877F2',color:'#fff',fontSize:13,fontWeight:600,cursor:'pointer',transition:'all .15s'}},
+          socialLoading==='facebook'
+            ?React.createElement('span',{className:'spin'})
+            :React.createElement('svg',{width:18,height:18,viewBox:'0 0 24 24',fill:'#fff'},
+                React.createElement('path',{d:'M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z'})
+              ),
+          'Facebook'
+        )
+      ),
+      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:14}},
+        React.createElement('div',{style:{flex:1,height:1,background:'var(--brd)'}}),
+        React.createElement('span',{style:{fontSize:11,color:'var(--txtm)',whiteSpace:'nowrap'}},'o con correo'),
+        React.createElement('div',{style:{flex:1,height:1,background:'var(--brd)'}})
+      ),
       React.createElement('div',{style:{display:'flex',alignItems:'center',gap:9,marginBottom:18}},
         React.createElement('div',{style:{width:30,height:30,borderRadius:8,background:'linear-gradient(135deg,#c4611e,#8b2e18)',display:'flex',alignItems:'center',justifyContent:'center'}},React.createElement('div',{style:{width:8,height:8,borderRadius:'50%',background:'#fff'}})),
         React.createElement('div',null,React.createElement('div',{style:{fontFamily:'Playfair Display,serif',fontSize:17,fontWeight:700,letterSpacing:2}},'NODO'),React.createElement('div',{style:{fontSize:9,color:'#9b8e7e',fontFamily:'DM Mono,monospace',letterSpacing:2}},'ZACATECAS'))
@@ -1909,6 +2002,13 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
     });
     return items.sort((a,b)=>b.pct-a.pct).slice(0,6);
   },[profiles]);
+  /* Auto-refresh trigger every 60s */
+  const [refreshTick,setRefreshTick]=useState(0);
+  useEffect(()=>{
+    const t=setInterval(()=>setRefreshTick(n=>n+1),60000);
+    return()=>clearInterval(t);
+  },[]);
+
   const allContent=useMemo(()=>{
     /* Sort profiles newest first (prioritize recent registrations) */
     const sorted=[...profiles].filter(p=>p&&p.name&&!p.hidden).sort((a,b)=>(b.createdAt||b.joinedAt||'').localeCompare(a.createdAt||a.joinedAt||''));
@@ -1927,7 +2027,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
     const top=items.slice(0,8);
     const rest=items.slice(8).sort(()=>Math.random()-.5);
     return [...top,...rest].slice(0,20);
-  },[profiles]);
+  },[profiles,refreshTick]);
   return React.createElement('div',{className:'view'},
     !currentUser&&React.createElement(VisitorBanner,{onAuthClick}),
     React.createElement('div',{className:'hero'},
@@ -1937,7 +2037,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
       React.createElement('div',{className:'search-bar'},React.createElement('span',{className:'search-ico'},React.createElement(Ic,{n:'search',size:17,color:'#9b8e7e'})),React.createElement('input',{onClick:()=>go('dir'),readOnly:true,placeholder:'Buscar artistas, espacios, municipios...'})),
       React.createElement('div',{className:'hero-stats'},[{v:profiles.length,l:'Perfiles'},{v:MUNIS58.length,l:'Municipios'},{v:profiles.reduce((s,p)=>s+(p.conns||0),0),l:'Conexiones'},{v:profiles.reduce((s,p)=>s+(p.convocatorias||[]).length,0),l:'Convocatorias'}].map(s=>React.createElement('div',{key:s.l,className:'stat-item'},React.createElement('div',{className:'stat-num'},s.v),React.createElement('div',{className:'stat-lbl'},s.l))))
     ),
-    React.createElement(HomeCarousel,{profiles,go,setProf}),
+    React.createElement(HomeCarousel,{profiles,go,setProf,refreshTick}),
     React.createElement('div',{className:'home-wrap'},
       React.createElement('div',{className:'home-grid'},
         React.createElement('div',null,
@@ -1949,7 +2049,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
             React.createElement('button',{className:'link-btn',onClick:()=>go('dir')},'Ver directorio →')
           ),
           homeTab==='feed'&&React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}},
-              [...profiles].filter(p=>p&&p.name&&!p.hidden).sort(()=>Math.random()-.5).slice(0,16).map(p=>{
+              [...profiles].filter(p=>p&&p.name&&!p.hidden).sort((a,b)=>{const r=Math.random()-.5;return refreshTick%2===0?r:-r;}).slice(0,16).map(p=>{
                 const c=catInfo(getCatId(p||{}));
                 return React.createElement('div',{key:p.id,
                   style:{borderRadius:14,overflow:'hidden',border:'1px solid var(--brd)',cursor:'pointer',transition:'all .2s',background:'var(--bgc)'},
@@ -2745,8 +2845,27 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
               React.createElement('button',{onClick:forceReloadProfiles,style:{padding:'5px 12px',border:'1px solid var(--brd)',borderRadius:7,background:'var(--bgch)',color:'var(--txts)',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
                 React.createElement(Ic,{n:'refresh',size:12}),'Actualizar'
               ),
-              React.createElement('button',{onClick:recoverPhotos,title:'Recupera fotos perdidas desde Firebase',style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#7c3aed,#5b21b6)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
-                '🖼 Recuperar fotos'
+              React.createElement('button',{onClick:recoverPhotos,title:'Recupera y consolida TODOS los datos históricos',style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#7c3aed,#5b21b6)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
+                '🔄 Recuperar todo'
+              ),
+              React.createElement('button',{onClick:async()=>{
+                if(!_fbReady||!_storage){showToast('Storage no disponible');return;}
+                showToast('⏳ Buscando fotos en Storage...');
+                let found=0;
+                const profSnap=await _db.collection('nodo').doc('profiles').get();
+                const profs=profSnap.exists?(profSnap.data().v||[]):[];
+                const updated=await Promise.all(profs.map(async p=>{
+                  if(p.photo&&!p.photo.startsWith('data:'))return p;/* already has URL */
+                  try{
+                    const url=await _storage.ref('profiles/'+(p.userId||p.id)+'/avatar.jpg').getDownloadURL();
+                    found++;return{...p,photo:url};
+                  }catch{return p;}/* no photo in Storage */
+                }));
+                await _db.collection('nodo').doc('profiles').set({v:updated,ts:Date.now()});
+                setProfiles(updated);
+                showToast(found>0?'✅ '+found+' foto(s) recuperadas de Storage':'ℹ️ No hay fotos en Storage — pídalas a los usuarios');
+              },style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#059669,#047857)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
+                '📦 Recuperar de Storage'
               ),
               React.createElement('button',{onClick:syncFirebaseUsers,style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#2a7a6e,#1a5a4e)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
                 '🔄 Importar desde Firebase'
@@ -3017,13 +3136,17 @@ function App(){
                 } else {
                   /* Fill missing fields */
                   const p=updated[idx];
-                  const merged={...p,
+                  const merged={
+                    ...p,/* existing always wins */
                     phone:p.phone||u.phone||'',
                     ig:p.ig||u.ig||'',
                     email:p.email||u.email||'',
-                    photo:p.photo||u.photo||null,
-                    status:p.status==='pending'?'approved':p.status,
+                    photo:p.photo||u.photo||null,/* existing photo always wins */
+                    muni:p.muni||u.muni||'zac',
+                    cp:p.cp||u.cp||'',
+                    status:p.status==='pending'?'approved':p.status||'approved',
                     verified:p.verified!==false,
+                    hidden:p.hidden===true,
                   };
                   if(JSON.stringify(merged)!==JSON.stringify(p)){updated[idx]=merged;changed=true;}
                 }
@@ -3056,8 +3179,15 @@ function App(){
             const changed=autoPassed.some((p,i)=>p.status!==data.v[i]?.status);
             if(changed)_db.collection('nodo').doc('profiles').set({v:autoPassed,ts:Date.now()}).catch(()=>{});
             setProfiles(prev=>{
-              if(JSON.stringify(prev)===JSON.stringify(autoPassed))return prev;
-              return autoPassed;
+              /* GOLDEN RULE: only ADD new profiles, never remove existing ones */
+              const merged=[...autoPassed];
+              prev.forEach(p=>{
+                if(!merged.find(x=>x.id===p.id||(x.userId&&x.userId===p.userId)||(x.email&&x.email===p.email))){
+                  merged.push(p);/* keep profiles not in new snapshot */
+                }
+              });
+              if(JSON.stringify(prev)===JSON.stringify(merged))return prev;
+              return merged;
             });
           }
         }
@@ -3185,17 +3315,26 @@ function App(){
         const exists=allProfiles.findIndex(x=>x.id===p.id||x.userId===p.userId||(x.email&&x.email===p.email));
         if(exists===-1){allProfiles.push(p);}
         else{
-          /* Merge keeping richest data */
+          /* GOLDEN RULE: only fill empty fields, NEVER overwrite existing data */
           const ex=allProfiles[exists];
           allProfiles[exists]={
-            ...ex,...p,
-            photo:p.photo||ex.photo||null,
-            bio:p.bio&&p.bio.length>0?p.bio:ex.bio||'',
-            ig:p.ig||ex.ig||'',phone:p.phone||ex.phone||'',
-            web:p.web||ex.web||'',sobre:p.sobre||ex.sobre||'',
-            portfolio:[...(p.portfolio||[]),...(ex.portfolio||[])].filter((x,i,a)=>a.findIndex(y=>y.url===x.url)===i).slice(0,20),
-            convocatorias:[...(p.convocatorias||[]),...(ex.convocatorias||[])],
-            proyectos:[...(p.proyectos||[]),...(ex.proyectos||[])],
+            ...p,/* start with incoming */
+            ...ex,/* overwrite with existing (existing wins) */
+            /* Exception: merge arrays and fill truly empty fields */
+            photo:ex.photo||p.photo||null,/* keep existing photo always */
+            bio:ex.bio&&ex.bio.length>0?ex.bio:(p.bio||''),
+            ig:ex.ig||p.ig||'',
+            phone:ex.phone||p.phone||'',
+            web:ex.web||p.web||'',
+            sobre:ex.sobre||p.sobre||'',
+            cp:ex.cp||p.cp||'',
+            muni:ex.muni||p.muni||'zac',
+            cats:ex.cats&&ex.cats.length>0?ex.cats:(p.cats||[]),
+            /* Merge arrays without duplicates */
+            portfolio:[...(ex.portfolio||[]),...(p.portfolio||[])].filter((x,i,a)=>x&&x.url&&a.findIndex(y=>y&&y.url===x.url)===i).slice(0,20),
+            convocatorias:[...(ex.convocatorias||[]),...(p.convocatorias||[])],
+            proyectos:[...(ex.proyectos||[]),...(p.proyectos||[])],
+            tags:[...new Set([...(ex.tags||[]),...(p.tags||[])])],
           };
         }
       });
@@ -3228,18 +3367,23 @@ function App(){
               conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{}
             });
           } else {
-            /* Merge missing fields WITHOUT overwriting photo or bio */
-            const p=allProfiles[exists];
+            /* GOLDEN RULE: only fill empty fields from users collection */
+            const pr=allProfiles[exists];
             allProfiles[exists]={
-              ...p,
-              name:p.name||u.name||'',
-              email:p.email||u.email||'',
-              phone:p.phone||u.phone||'',
-              ig:p.ig||u.ig||'',
-              photo:p.photo||u.photo||u.photoURL||null,
-              status:p.status==='pending'?'approved':p.status,
-              approvedAt:p.approvedAt||fmtDate(),
-              verified:p.verified!==false,
+              ...pr,/* existing always wins */
+              /* Only fill if currently empty */
+              name:pr.name||uName,
+              email:pr.email||u.email||'',
+              phone:pr.phone||u.phone||'',
+              ig:pr.ig||u.ig||'',
+              web:pr.web||u.web||'',
+              cp:pr.cp||u.cp||'',
+              muni:pr.muni||u.muni||'zac',
+              photo:pr.photo||u.photo||u.photoURL||null,/* existing photo always wins */
+              status:pr.status==='pending'?'approved':pr.status||'approved',
+              approvedAt:pr.approvedAt||fmtDate(),
+              verified:pr.verified!==false,
+              hidden:pr.hidden===true,
             };
           }
         });
@@ -3401,6 +3545,28 @@ function App(){
   const addProfile=async(p)=>{
     const profileWithStatus={...p,status:'pending',approvedAt:null};
     const newProfiles=[profileWithStatus,...profiles];setProfiles(newProfiles);await DB.set('profiles',newProfiles,true);
+    /* Also update users/{uid} with full profile data so recovery always works */
+    if(_fbReady&&_db&&currentUser&&currentUser.id&&currentUser.id!=='admin'){
+      try{
+        await _db.collection('users').doc(currentUser.id).set({
+          name:profileWithStatus.name,
+          email:profileWithStatus.email||currentUser.email||'',
+          phone:profileWithStatus.phone||'',
+          cat:profileWithStatus.cat||'artista',
+          cats:profileWithStatus.cats||[profileWithStatus.cat||'artista'],
+          ig:profileWithStatus.ig||'',
+          web:profileWithStatus.web||'',
+          muni:profileWithStatus.muni||'zac',
+          cp:profileWithStatus.cp||'',
+          bio:profileWithStatus.bio||'',
+          sobre:profileWithStatus.sobre||'',
+          tags:profileWithStatus.tags||[],
+          photo:profileWithStatus.photo||null,
+          musicUrl:profileWithStatus.musicUrl||'',
+          updatedAt:fmtDate(),
+        },{merge:true});/* merge:true means we only update specified fields */
+      }catch(e){console.warn('Could not update users doc:',e);}
+    }
     await addNotifForAll({text:'Nuevo perfil en la red: '+p.name+' ('+catInfo(p.cat).label+')',type:p.cat,cat:p.cat});
     const adminNotif={id:'nadmin_'+Date.now(),text:'🆕 Nuevo perfil para aprobar: '+p.name+' ('+catInfo(p.cat).label+') — '+muniName(p.muni),time:'ahora',unread:true,type:'nuevo_perfil',profileId:p.id};
     try{const existing=await DB.get('notifs:admin')||[];await DB.set('notifs:admin',[adminNotif,...existing].slice(0,100));}catch{}
@@ -3418,6 +3584,19 @@ function App(){
     setProfiles(newProfiles);
     await DB.set('profiles',newProfiles,true);
     if(selProf&&selProf.id===u.id)setSelProf(u);
+    /* Keep users/{uid} in sync with every profile edit */
+    if(_fbReady&&_db&&u.userId&&u.userId!=='admin'){
+      try{
+        await _db.collection('users').doc(u.userId).set({
+          name:u.name||'',email:u.email||'',phone:u.phone||'',
+          cat:u.cat||'artista',cats:u.cats||[u.cat||'artista'],
+          ig:u.ig||'',web:u.web||'',muni:u.muni||'zac',cp:u.cp||'',
+          bio:u.bio||'',sobre:u.sobre||'',tags:u.tags||[],
+          photo:u.photo||null,musicUrl:u.musicUrl||'',
+          updatedAt:fmtDate(),
+        },{merge:true});
+      }catch(e){console.warn('users doc sync error:',e);}
+    }
   };
 
   const onHide=async(id)=>{
