@@ -572,6 +572,8 @@ let _db=null,_storage=null,_auth=null,_fbReady=false;
     _db=firebase.firestore();
     _storage=firebase.storage();
     _auth=firebase.auth();
+    window._googleProvider = new firebase.auth.GoogleAuthProvider();
+    window._facebookProvider = new firebase.auth.FacebookAuthProvider();
     _fbReady=true;
     console.log('Firebase conectado ✓');
   }catch(e){console.warn('Firebase no configurado, usando localStorage',e);}
@@ -2107,19 +2109,30 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
               
               React.useEffect(() => {
                 let mounted = true;
-                if(window._fbReady && window._db) {
-                  window._db.collection('nodo').doc('alerts').get().then(snap => {
-                    if(mounted) {
-                      if(snap.exists) setAlerts(snap.data().v || []);
-                      setLoadingAlerts(false);
+                const loadAlerts = async () => {
+                  let attempts = 0;
+                  while((!window._fbReady || !window._db) && attempts < 50) {
+                    await new Promise(r => setTimeout(r, 100));
+                    attempts++;
+                  }
+                  
+                  if(mounted && window._fbReady && window._db) {
+                    try {
+                      const snap = await window._db.collection('nodo').doc('alerts').get();
+                      if(mounted) {
+                        if(snap.exists) setAlerts(snap.data().v || []);
+                        setLoadingAlerts(false);
+                      }
+                    } catch(e) {
+                      console.error("Error loading alerts:", e);
+                      if(mounted) setLoadingAlerts(false);
                     }
-                  }).catch(e => {
-                    console.error("Error loading alerts:", e);
-                    if(mounted) setLoadingAlerts(false);
-                  });
-                } else {
-                  setLoadingAlerts(false);
-                }
+                  } else if(mounted) {
+                    setLoadingAlerts(false);
+                  }
+                };
+                
+                loadAlerts();
                 return () => { mounted = false; };
               }, []);
               
@@ -3083,8 +3096,20 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
             btn.disabled = true;
             
             try {
-              if(!window._fbReady || !window._db) {
-                window.alert('Error: Firebase no está listo. Recarga la página e intenta de nuevo.');
+              // Wait for Firebase to be ready (up to 5 seconds)
+              let fbReady = false;
+              let attempts = 0;
+              while(!fbReady && attempts < 50) {
+                if(window._fbReady && window._db && window._auth) {
+                  fbReady = true;
+                  break;
+                }
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
+              }
+              
+              if(!fbReady) {
+                window.alert('Error: Firebase no está listo después de esperar. Por favor recarga la página e intenta de nuevo.');
                 btn.innerText = origText;
                 btn.disabled = false;
                 return;
