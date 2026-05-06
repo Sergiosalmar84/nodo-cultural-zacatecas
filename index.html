@@ -603,10 +603,21 @@ const DB={
 };
 
 /* ── PHOTO UPLOAD to Firebase Storage or base64 fallback ── */
-async function uploadPhoto(base64,path){
+async function uploadPhoto(base64, path, userId = null) {
   if(!_fbReady||!_storage)return base64;
   try{
-    const ref=_storage.ref(path);
+    // Si se proporciona un userId, forzar que la ruta sea dentro de su carpeta
+    // Si no, intentar extraerlo del usuario logueado actualmente
+    const uid = userId || (firebase.auth().currentUser ? firebase.auth().currentUser.uid : null);
+    
+    let finalPath = path;
+    if (uid) {
+      // Limpiar el path original para que no tenga prefijos antiguos
+      const cleanPath = path.replace(/^(portfolio|photos|profiles|avatars)\//, '');
+      finalPath = `users/${uid}/${cleanPath}`;
+    }
+    
+    const ref=_storage.ref(finalPath);
     await ref.putString(base64,'data_url');
     return await ref.getDownloadURL();
   }catch(e){console.warn('Storage upload failed',e);return base64;}
@@ -618,7 +629,7 @@ const ADMIN_EMAIL='4921449205',ADMIN_PASS='4921449205';
 const ADMIN_GMAIL='lared@nodoart.mx';
 const EMAILJS_SERVICE='service_nodoart';
 const EMAILJS_TEMPLATE='template_nodoart';
-const EMAILJS_PUBLIC_KEY='TU_PUBLIC_KEY_EMAILJS'; /* Reemplaza con tu key de emailjs.com */
+const EMAILJS_PUBLIC_KEY='eMuOy0pXSKRMbdEpN'; /* Credencial proporcionada por el usuario */
 
 async function notifyAdmin(subject,body){
   try{
@@ -1237,10 +1248,15 @@ const HomeCarousel=({profiles,go,setProf,refreshTick=0})=>{
           El('div',{className:'carousel-inner',onClick:()=>{if(it.profile){setProf(it.profile);go('profile');}},style:{cursor:it.profile?'pointer':'default'}},
             /* Visual */
             it.type==='musica'
-              ?El('div',{className:'carousel-music-card',style:{background:it.color}},
-                  El('div',{style:{fontSize:52}},'🎵'),
-                  El('div',{style:{fontSize:11,color:'rgba(255,255,255,.8)',fontWeight:700,letterSpacing:2}},(it.label||'MÚSICA').toUpperCase())
+              ?El('div',{className:'carousel-music-card',style:{background:it.color, padding: 0, overflow: 'hidden'}},
+                  it.link.includes('spotify.com') ? El('iframe',{src:it.link.replace('open.spotify.com','open.spotify.com/embed'),width:'100%',height:'100%',frameBorder:'0',allowtransparency:'true',allow:'encrypted-media',onClick:e=>e.stopPropagation()}) :
+                  it.link.includes('soundcloud.com') ? El('iframe',{width:'100%',height:'100%',scrolling:'no',frameBorder:'no',allow:'autoplay',src:'https://w.soundcloud.com/player/?url='+encodeURIComponent(it.link)+'&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true',onClick:e=>e.stopPropagation()}) :
+                  El(React.Fragment, null, El('div',{style:{fontSize:52}},'🎵'), El('div',{style:{fontSize:11,color:'rgba(255,255,255,.8)',fontWeight:700,letterSpacing:2}},(it.label||'MÚSICA').toUpperCase()))
                 )
+              :it.type==='video'
+                ?El('div',{className:'carousel-music-card',style:{background:'#000', padding: 0, overflow: 'hidden'}},
+                    El('iframe',{src:it.link,width:'100%',height:'100%',frameBorder:'0',allow:'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',allowFullScreen:true,onClick:e=>e.stopPropagation()})
+                  )
               :it.type==='antorcha'
                 ?El('div',{className:'carousel-music-card',style:{background:'linear-gradient(135deg,#7c2d12,#f97316)'}},
                     El('div',{style:{fontSize:52}},'🔥'),
@@ -1273,7 +1289,7 @@ const HomeCarousel=({profiles,go,setProf,refreshTick=0})=>{
                 El('span',null,it.profile?c.label:''),
                 it.profile&&El('span',{style:{color:c.color,fontSize:11}},muniName(it.profile.muni))
               ),
-              it.type==='musica'&&it.link&&El('a',{href:it.link,target:'_blank',rel:'noopener noreferrer',onClick:e=>e.stopPropagation(),style:{display:'inline-flex',alignItems:'center',gap:6,marginTop:12,padding:'8px 16px',background:it.color,borderRadius:20,color:'#fff',fontSize:12,fontWeight:600,textDecoration:'none'}},
+              it.type==='musica'&&it.link&&!it.link.includes('spotify.com')&&!it.link.includes('soundcloud.com')&&El('a',{href:it.link,target:'_blank',rel:'noopener noreferrer',onClick:e=>e.stopPropagation(),style:{display:'inline-flex',alignItems:'center',gap:6,marginTop:12,padding:'8px 16px',background:it.color,borderRadius:20,color:'#fff',fontSize:12,fontWeight:600,textDecoration:'none'}},
                 El('span',null,'▶'),El('span',null,'Escuchar ahora')
               ),
               it.type==='antorcha'&&El('div',{style:{marginTop:12,display:'inline-flex',alignItems:'center',gap:6,padding:'8px 16px',background:'rgba(249,115,22,.1)',border:'1px solid rgba(249,115,22,.3)',borderRadius:20,color:'#f97316',fontSize:12,fontWeight:600}},
@@ -2046,8 +2062,10 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
       React.createElement('div',{className:'home-grid'},
         React.createElement('div',null,
           React.createElement('div',{className:'feed-header'},
-            React.createElement('div',{style:{display:'flex',gap:6}},
+            React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
               React.createElement('button',{className:homeTab==='feed'?'tab-btn active':'tab-btn',onClick:()=>setHomeTab('feed')},'Actividad'),
+              React.createElement('button',{className:homeTab==='anuncios'?'tab-btn active':'tab-btn',onClick:()=>setHomeTab('anuncios')},React.createElement('span',{style:{marginRight:4}},'🔔'),'Anuncios y Eventos'),
+              React.createElement('button',{className:homeTab==='convocatorias'?'tab-btn active':'tab-btn',onClick:()=>setHomeTab('convocatorias')},React.createElement('span',{style:{marginRight:4}},'📜'),'Convocatorias'),
               React.createElement('button',{className:homeTab==='campanas'?'tab-btn active':'tab-btn',onClick:()=>setHomeTab('campanas')},React.createElement('span',{style:{marginRight:4}},'🔥'),'Campañas')
             ),
             React.createElement('button',{className:'link-btn',onClick:()=>go('dir')},'Ver directorio →')
@@ -2081,6 +2099,23 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
                 );
               })
             ),
+          homeTab==='anuncios'&&React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:16}},
+            React.createElement('div',{className:'post-card',style:{background:'linear-gradient(135deg,rgba(124,58,237,.08),rgba(249,115,22,.08))',border:'1px solid rgba(124,58,237,.2)'}},
+              React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:12}},
+                React.createElement('div',{style:{fontSize:24}},'🔔'),
+                React.createElement('div',null,
+                  React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},'Anuncios Globales'),
+                  React.createElement('div',{style:{fontSize:12,color:'var(--txts)'}},'Noticias y actualizaciones de NODO ART')
+                )
+              ),
+              React.createElement('div',{style:{fontSize:14,color:'var(--txt)',lineHeight:1.5}},'Próximamente: Aquí aparecerán los anuncios importantes publicados por los administradores.')
+            ),
+            React.createElement('h3',{style:{fontFamily:'museo-sans,sans-serif',fontSize:18,color:'var(--txt)',marginTop:12,marginBottom:8}},'Eventos y Cursos de la Comunidad'),
+            React.createElement('div',{className:'empty-state'},React.createElement('div',{style:{fontSize:40,marginBottom:12}},'📅'),React.createElement('h3',null,'Sin eventos próximos'),React.createElement('p',null,'Cuando los creadores publiquen eventos o talleres aparecerán aquí.'))
+          ),
+          homeTab==='convocatorias'&&React.createElement('div',null,
+            React.createElement('div',{className:'empty-state'},React.createElement('div',{style:{fontSize:40,marginBottom:12}},'📜'),React.createElement('h3',null,'Sin convocatorias activas'),React.createElement('p',null,'Cuando se publiquen nuevas convocatorias aparecerán aquí.'))
+          ),
           homeTab==='campanas'&&React.createElement('div',null,
             activeCampaigns.length===0
               ?React.createElement('div',{className:'empty-state'},React.createElement('div',{style:{fontSize:40,marginBottom:12}},'🔥'),React.createElement('h3',null,'Sin campañas activas'),React.createElement('p',null,'Cuando los creadores publiquen proyectos de crowdfunding aparecerán aquí.'))
@@ -2226,13 +2261,27 @@ const DirPage=({profiles,go,setProf})=>{
   );
 };
 /* ── PROFILE PAGE ── */
+const PROFILE_THEMES = [
+  {id:'default', name:'Predeterminado', color:'var(--amb)', bg:'linear-gradient(135deg, rgba(196,97,30,0.05), rgba(196,97,30,0.01))'},
+  {id:'dark', name:'Noche Oscura', color:'#a8b2d1', bg:'linear-gradient(135deg, #1e293b, #0f172a)'},
+  {id:'neon', name:'Cyber Neon', color:'#f472b6', bg:'linear-gradient(135deg, rgba(244,114,182,0.1), rgba(56,189,248,0.1))'},
+  {id:'nature', name:'Bosque Profundo', color:'#4ade80', bg:'linear-gradient(135deg, rgba(74,222,128,0.08), rgba(20,83,45,0.05))'},
+  {id:'sunset', name:'Atardecer', color:'#fb923c', bg:'linear-gradient(135deg, rgba(251,146,60,0.1), rgba(225,29,72,0.05))'},
+  {id:'ocean', name:'Océano', color:'#38bdf8', bg:'linear-gradient(135deg, rgba(56,189,248,0.1), rgba(30,58,138,0.05))'},
+  {id:'vintage', name:'Sepia Vintage', color:'#d4a373', bg:'linear-gradient(135deg, rgba(212,163,115,0.15), rgba(120,53,15,0.05))'},
+  {id:'minimal', name:'Minimalista Blanco', color:'#52525b', bg:'#ffffff'}
+];
+
 const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNotifForAll,setProf,onStartChat})=>{
   const [tab,setTab]=useState('about');const [following,setFollowing]=useState(false);const [showEdit,setShowEdit]=useState(false);const [showShare,setShowShare]=useState(false);
   const [newVideo,setNewVideo]=useState('');const [convTitle,setConvTitle]=useState('');const [convDesc,setConvDesc]=useState('');const [convImg,setConvImg]=useState(null);
   const photoRef=useRef();const convImgRef=useRef();
   if(!p)return null;
-  const c=catInfo(getCatId(p||{}));const isOwn=currentUser&&(currentUser.id===p.userId||currentUser.role==='admin');
-  const addPhoto=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async ev=>{const url=await uploadPhoto(ev.target.result,'portfolio/'+Date.now()+'_'+f.name.replace(/[^a-z0-9.]/gi,'_'));onUpdateProfile({...p,portfolio:[...(p.portfolio||[]),{type:'photo',url,title:f.name.replace(/\.[^.]+$/,''),date:fmtDate()}]});};r.readAsDataURL(f);};
+  const baseC=catInfo(getCatId(p||{}));const isOwn=currentUser&&(currentUser.id===p.userId||currentUser.role==='admin');
+  const userTheme = PROFILE_THEMES.find(t=>t.id===p.theme) || PROFILE_THEMES[0];
+  const c = p.theme && p.theme !== 'default' ? {...baseC, color: userTheme.color} : baseC;
+  const profileBg = p.theme && p.theme !== 'default' ? userTheme.bg : '';
+  const addPhoto=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async ev=>{const url=await uploadPhoto(ev.target.result,'portfolio/'+Date.now()+'_'+f.name.replace(/[^a-z0-9.]/gi,'_'), p.userId);onUpdateProfile({...p,portfolio:[...(p.portfolio||[]),{type:'photo',url,title:f.name.replace(/\.[^.]+$/,''),date:fmtDate()}]});};r.readAsDataURL(f);};
   const addVideo=()=>{
     if(!newVideo.trim())return;
     const url=newVideo.trim();
@@ -2247,13 +2296,18 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
   const removePortItem=i=>{const np=[...(p.portfolio||[])];np.splice(i,1);onUpdateProfile({...p,portfolio:np});};
   const addConv=async()=>{if(!convTitle.trim())return;const newConv={title:convTitle.trim(),desc:convDesc.trim(),img:convImg,date:fmtDate(),id:'c'+Date.now()};onUpdateProfile({...p,convocatorias:[...(p.convocatorias||[]),newConv]});setConvTitle('');setConvDesc('');setConvImg(null);if(addNotifForAll)await addNotifForAll({text:p.name+' publicó nueva convocatoria: '+newConv.title,type:'convocatoria',cat:p.cat});};
   const removeConv=id=>onUpdateProfile({...p,convocatorias:(p.convocatorias||[]).filter(c=>c.id!==id)});
-  return React.createElement('div',{className:'profile-view fadein'},
+  return React.createElement('div',{className:'profile-view fadein', style:{background: profileBg}},
     showEdit&&React.createElement('div',{className:'modal-overlay',onClick:e=>{if(e.target===e.currentTarget)setShowEdit(false);}},
       React.createElement('div',{className:'modal-card fadein',style:{maxWidth:480}},
         React.createElement('button',{className:'modal-close',onClick:()=>setShowEdit(false)},React.createElement(Ic,{n:'x',size:15,color:'#9b8e7e'})),
         React.createElement('h2',{style:{fontFamily:'Playfair Display,serif',fontSize:22,color:'var(--txt)',marginBottom:20}},'Editar perfil'),
         React.createElement('div',{style:{display:'flex',justifyContent:'center',marginBottom:20}},React.createElement(PhotoUpload,{photo:p.photo,onChange:v=>onUpdateProfile({...p,photo:v}),size:90})),
         React.createElement('div',{className:'field-group'},
+          React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tema de Color'),
+            React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}},
+              PROFILE_THEMES.map(t=>React.createElement('button',{key:t.id,onClick:()=>onUpdateProfile({...p,theme:t.id}),style:{width:32,height:32,borderRadius:'50%',background:t.bg.includes('gradient')?t.bg:t.color,border:p.theme===t.id?'3px solid var(--txt)':'2px solid transparent',cursor:'pointer',boxShadow:'0 2px 5px rgba(0,0,0,0.1)'},title:t.name}))
+            )
+          ),
           React.createElement('div',null,React.createElement('label',{className:'field-label'},'Bio'),React.createElement('textarea',{className:'field-textarea',rows:4,defaultValue:p.bio,onBlur:e=>onUpdateProfile({...p,bio:e.target.value})})),
           React.createElement('div',null,React.createElement('label',{className:'field-label'},'Categorías artísticas'),React.createElement(ArtCatSelector,{selected:p.artTags||[],onChange:v=>onUpdateProfile({...p,artTags:v})})),
           ...[{k:'web',l:'Sitio Web',ph:'tusitio.com',n:'globe'},{k:'email',l:'Correo',ph:'correo@dominio.com',n:'mail'},{k:'phone',l:'Teléfono',ph:'+52 492 000 0000',n:'phone'},{k:'ig',l:'Instagram',ph:'@tuusuario',n:'instagram'}].map(field=>React.createElement('div',{key:field.k},React.createElement('label',{className:'field-label'},field.l),React.createElement('div',{className:'field-wrap'},React.createElement('span',{className:'field-ico'},React.createElement(Ic,{n:field.n,size:14,color:'#9b8e7e'})),React.createElement('input',{className:'field-input pl',defaultValue:p[field.k]||'',onBlur:e=>onUpdateProfile({...p,[field.k]:e.target.value}),placeholder:field.ph}))))
@@ -2297,7 +2351,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
         React.createElement(StatPill,{icon:'eye',val:(p.views||0).toLocaleString(),label:'vistas'}),
         (p.founded||p.born)&&React.createElement(StatPill,{icon:'calendar',val:'Desde '+(p.founded||p.born),label:''})
       ),
-      React.createElement('div',{className:'profile-tabs'},[['about','Sobre'],['portfolio','Portfolio'],['convocatorias','Convocatorias'],...(['casa','espacio','galeria'].includes(p.cat)?[]:[['antorcha','🔥 Antorcha']]),['connections','Conexiones']].map(([t,l])=>React.createElement('button',{key:t,className:'tab-btn'+(tab===t?' active':''),onClick:()=>setTab(t)},l))),
+      React.createElement('div',{className:'profile-tabs'},[['about','Sobre'],['portfolio','Portfolio'],['convocatorias','Anuncios'],['eventos','📅 Eventos y Cursos'],...(['casa','espacio','galeria'].includes(p.cat)?[]:[['antorcha','🔥 Antorcha']]),['connections','Conexiones']].map(([t,l])=>React.createElement('button',{key:t,className:'tab-btn'+(tab===t?' active':''),onClick:()=>setTab(t)},l))),
       React.createElement('div',{className:'profile-grid'},
         React.createElement('div',null,
           tab==='about'&&React.createElement('div',null,
@@ -2350,9 +2404,53 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
               React.createElement('div',{className:'field-group'},
                 React.createElement('div',null,React.createElement('label',{className:'field-label'},'Título *'),React.createElement('input',{className:'field-input',value:convTitle,onChange:e=>setConvTitle(e.target.value),placeholder:'Título de la convocatoria...'})),
                 React.createElement('div',null,React.createElement('label',{className:'field-label'},'Descripción / Contacto'),React.createElement('textarea',{className:'field-textarea',rows:3,value:convDesc,onChange:e=>setConvDesc(e.target.value),placeholder:'Descripción, requisitos, fechas, contacto...'})),
-                React.createElement('div',null,React.createElement('label',{className:'field-label'},'Imagen (opcional)'),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:9}},convImg&&React.createElement('img',{src:convImg,style:{width:60,height:40,objectFit:'cover',borderRadius:6,border:'1px solid var(--brd)'}}),React.createElement('label',{htmlFor:'conv-img-input',style:{padding:'7px 12px',background:'var(--bg2)',border:'1px solid var(--brd)',borderRadius:8,color:'var(--txts)',fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:5,WebkitTapHighlightColor:'transparent'}},React.createElement(Ic,{n:'image',size:13}),'Imagen'),React.createElement('input',{id:'conv-img-input',ref:convImgRef,type:'file',accept:'image/*',style:{position:'absolute',width:1,height:1,opacity:0,overflow:'hidden',zIndex:-1},onChange:e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=async ev=>{const url=await uploadPhoto(ev.target.result,'convocatorias/'+Date.now());setConvImg(url);};r.readAsDataURL(f);}}})))
+                React.createElement('div',null,React.createElement('label',{className:'field-label'},'Imagen (opcional)'),React.createElement('div',{style:{display:'flex',alignItems:'center',gap:9}},convImg&&React.createElement('img',{src:convImg,style:{width:60,height:40,objectFit:'cover',borderRadius:6,border:'1px solid var(--brd)'}}),React.createElement('label',{htmlFor:'conv-img-input',style:{padding:'7px 12px',background:'var(--bg2)',border:'1px solid var(--brd)',borderRadius:8,color:'var(--txts)',fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:5,WebkitTapHighlightColor:'transparent'}},React.createElement(Ic,{n:'image',size:13}),'Imagen'),React.createElement('input',{id:'conv-img-input',ref:convImgRef,type:'file',accept:'image/*',style:{position:'absolute',width:1,height:1,opacity:0,overflow:'hidden',zIndex:-1},onChange:e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=async ev=>{const url=await uploadPhoto(ev.target.result,'convocatorias/'+Date.now(), p.userId);setConvImg(url);};r.readAsDataURL(f);}}})))
               ),
               React.createElement('button',{onClick:addConv,disabled:!convTitle.trim(),className:'btn-primary',style:{opacity:convTitle.trim()?1:.5}},'Publicar anuncio')
+            )
+          ),
+          tab==='eventos'&&React.createElement('div',null,
+            (p.eventos||[]).length===0&&React.createElement('div',{className:'empty-state'},React.createElement(Ic,{n:'calendar',size:36,color:'var(--brd)'}),React.createElement('p',null,'Sin eventos o cursos activos.')),
+            (p.eventos||[]).map(ev=>React.createElement('div',{key:ev.id,className:'conv-card'},
+              ev.img&&React.createElement('div',{className:'conv-card-cover'},React.createElement('img',{src:ev.img,alt:ev.title})),
+              React.createElement('div',{className:'conv-card-body'},
+                React.createElement('span',{className:'conv-badge',style:{background:ev.type==='curso'?'rgba(13,148,136,.1)':'rgba(217,119,6,.1)',color:ev.type==='curso'?'#0d9488':'#d97706'}},ev.type==='curso'?'Clase / Curso':'Evento'),
+                React.createElement('div',{className:'conv-card-title'},ev.title),
+                ev.desc&&React.createElement('p',{className:'conv-card-desc'},ev.desc),
+                React.createElement('div',{style:{display:'flex',gap:12,marginTop:8,fontSize:12,color:'var(--txts)'}},
+                  ev.date&&React.createElement('span',{style:{display:'flex',alignItems:'center',gap:4}},React.createElement(Ic,{n:'calendar',size:12}),ev.date),
+                  ev.price&&React.createElement('span',{style:{display:'flex',alignItems:'center',gap:4}},React.createElement(Ic,{n:'tag',size:12}),ev.price)
+                ),
+                ev.link&&React.createElement('a',{href:ev.link,target:'_blank',rel:'noopener noreferrer',style:{display:'inline-block',marginTop:12,padding:'6px 12px',background:'var(--bg2)',border:'1px solid var(--brd)',borderRadius:6,color:'var(--txt)',fontSize:12,fontWeight:600,textDecoration:'none'}},'Más información / Boletos'),
+                isOwn&&React.createElement('button',{onClick:()=>{const ne=(p.eventos||[]).filter(e=>e.id!==ev.id);onUpdateProfile({...p,eventos:ne});},style:{display:'block',marginTop:8,padding:'4px 10px',background:'rgba(192,57,43,.08)',border:'1px solid rgba(192,57,43,.2)',borderRadius:6,color:'#c0392b',fontSize:11,cursor:'pointer'}},'Eliminar')
+              )
+            )),
+            isOwn&&React.createElement('div',{className:'content-card'},
+              React.createElement('h3',null,'Publicar Evento o Curso'),
+              React.createElement('div',{className:'field-group'},
+                React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo *'),React.createElement('select',{id:'new-ev-type',className:'field-select'},React.createElement('option',{value:'evento'},'Evento / Presentación'),React.createElement('option',{value:'curso'},'Clase / Curso / Taller'))),
+                React.createElement('div',null,React.createElement('label',{className:'field-label'},'Título *'),React.createElement('input',{id:'new-ev-title',className:'field-input',placeholder:'Ej: Taller de cerámica básica'})),
+                React.createElement('div',null,React.createElement('label',{className:'field-label'},'Fecha y Horario'),React.createElement('input',{id:'new-ev-date',className:'field-input',placeholder:'Ej: Sábados de 10am a 12pm'})),
+                React.createElement('div',null,React.createElement('label',{className:'field-label'},'Costo / Inversión'),React.createElement('input',{id:'new-ev-price',className:'field-input',placeholder:'Ej: $500 MXN o Entrada Libre'})),
+                React.createElement('div',null,React.createElement('label',{className:'field-label'},'Enlace (Boletos o Info)'),React.createElement('input',{id:'new-ev-link',className:'field-input',placeholder:'https://...'})),
+                React.createElement('div',null,React.createElement('label',{className:'field-label'},'Descripción'),React.createElement('textarea',{id:'new-ev-desc',className:'field-textarea',rows:3,placeholder:'Detalles del evento...'}))
+              ),
+              React.createElement('button',{onClick:()=>{
+                const title=document.getElementById('new-ev-title').value.trim();
+                if(!title)return;
+                const newEv = {
+                  id:'ev'+Date.now(),
+                  type:document.getElementById('new-ev-type').value,
+                  title,
+                  date:document.getElementById('new-ev-date').value.trim(),
+                  price:document.getElementById('new-ev-price').value.trim(),
+                  link:document.getElementById('new-ev-link').value.trim(),
+                  desc:document.getElementById('new-ev-desc').value.trim(),
+                  img:null // Simplificado por ahora
+                };
+                onUpdateProfile({...p,eventos:[...(p.eventos||[]),newEv]});
+                ['new-ev-title','new-ev-date','new-ev-price','new-ev-link','new-ev-desc'].forEach(id=>document.getElementById(id).value='');
+              },className:'btn-primary',style:{marginTop:12}},'Publicar')
             )
           ),
           tab==='antorcha'&&React.createElement('div',null,
@@ -2748,7 +2846,7 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
   return React.createElement('div',{className:'admin-view fadein'},
     React.createElement('div',{className:'admin-hdr'},React.createElement(Ic,{n:'shield',size:20,color:'#c4611e'}),React.createElement('h1',null,'Panel de Administración'),React.createElement('span',{style:{marginLeft:'auto',fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},ADMIN_EMAIL)),
     React.createElement('div',{className:'admin-body'},
-      React.createElement('div',{className:'admin-tabs'},[['dashboard','Panel','home'],['database','Base de datos','download'],['email','Correos','megaphone'],['profiles','Perfiles','users'],['bienvenidas','🎨 Bienvenidas','sparkles'],['config','Configuración','key']].map(([id,l,icon])=>React.createElement('button',{key:id,className:'admin-tab'+(adminTab===id?' active':''),onClick:()=>setAdminTab(id)},id==='bienvenidas'?'🎨 Bienvenidas':React.createElement(React.Fragment,null,React.createElement(Ic,{n:icon,size:14}),'\u00A0',l)))),
+      React.createElement('div',{className:'admin-tabs'},[['dashboard','Panel','home'],['database','Base de datos','download'],['email','Correos','megaphone'],['profiles','Perfiles','users'],['alertas','🔔 Alertas Globales','bell'],['config','Configuración','key']].map(([id,l,icon])=>React.createElement('button',{key:id,className:'admin-tab'+(adminTab===id?' active':''),onClick:()=>setAdminTab(id)},id==='alertas'?'🔔 Alertas Globales':React.createElement(React.Fragment,null,React.createElement(Ic,{n:icon,size:14}),'\u00A0',l)))),
       adminTab==='dashboard'&&React.createElement('div',null,
         /* Demo profiles banner */
         profiles.some(p=>p.isDemo)&&React.createElement('div',{style:{background:'rgba(160,124,40,.08)',border:'1px solid rgba(160,124,40,.25)',borderRadius:12,padding:'12px 18px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}},
@@ -2845,18 +2943,8 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
           React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}},
             React.createElement('h3',{style:{margin:0}},'Gestión de perfiles'),
             React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center'}},
-              React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},profiles.length+' perfiles totales'),
               React.createElement('button',{onClick:forceReloadProfiles,style:{padding:'5px 12px',border:'1px solid var(--brd)',borderRadius:7,background:'var(--bgch)',color:'var(--txts)',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
-                React.createElement(Ic,{n:'refresh',size:12}),'Actualizar'
-              ),
-              React.createElement('button',{onClick:recoverPhotos,title:'Recupera y consolida TODOS los datos históricos',style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#7c3aed,#5b21b6)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
-                '🔄 Recuperar todo'
-              ),
-              React.createElement('button',{onClick:recoverFromStorage,style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#059669,#047857)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
-                '📦 Recuperar de Storage'
-              ),
-              React.createElement('button',{onClick:syncFirebaseUsers,style:{padding:'5px 14px',border:'none',borderRadius:7,background:'linear-gradient(135deg,#2a7a6e,#1a5a4e)',color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:5}},
-                '🔄 Importar desde Firebase'
+                React.createElement(Ic,{n:'refresh',size:12}),'Actualizar Firebase'
               )
             ),
             React.createElement('div',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},profiles.length+' perfiles totales')
@@ -2902,87 +2990,55 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
       /* ══════════════════════════════
          TAB: BIENVENIDAS EN CANVA
       ══════════════════════════════ */
-      adminTab==='bienvenidas'&&React.createElement('div',null,
-        /* Header */
-        React.createElement('div',{style:{background:'linear-gradient(135deg,rgba(124,58,237,.06),rgba(249,115,22,.04))',border:'1px solid rgba(124,58,237,.18)',borderRadius:16,padding:'20px 22px',marginBottom:20}},
-          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:8}},
-            React.createElement('div',{style:{fontSize:28}},'🎨'),
-            React.createElement('div',null,
-              React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:20,fontWeight:700,color:'var(--txt)'}},'Bienvenidas en Canva'),
-              React.createElement('div',{style:{fontSize:13,color:'var(--txts)',marginTop:2}},'Genera publicaciones de bienvenida personalizadas para nuevos usuarios. Se abren en Canva para editar y descargar en alta resolución.')
-            )
-          ),
-          React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
-            [{l:'Instagram Post',f:'instagram_post',e:'📱'},{l:'Story / TikTok',f:'story',e:'📺'},{l:'Facebook Post',f:'facebook_post',e:'💻'},{l:'Muro Twitter/X',f:'twitter_post',e:'🐦'}].map(({l,f,e})=>
-              React.createElement('span',{key:f,style:{padding:'5px 12px',borderRadius:20,background:'rgba(124,58,237,.1)',border:'1px solid rgba(124,58,237,.2)',fontSize:12,color:'#7c3aed',fontWeight:600}},e,' ',l)
-            )
+      adminTab==='alertas'&&React.createElement('div',null,
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:20}},
+          React.createElement('div',{style:{width:48,height:48,borderRadius:12,background:'linear-gradient(135deg,#c4611e,#8b2e18)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:24}},'🔔'),
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:20,fontWeight:700,color:'var(--txt)'}},'Alertas Globales y Popups'),
+            React.createElement('div',{style:{fontSize:13,color:'var(--txts)',marginTop:2}},'Publica anuncios importantes, convocatorias o noticias que todos los usuarios verán.')
           )
         ),
-        /* Templates generated */
-        React.createElement('div',{style:{marginBottom:24}},
-          React.createElement('h3',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,color:'var(--txt)',marginBottom:14}},
-            '📋 Plantillas disponibles — haz clic para abrir y editar en Canva'
+        React.createElement('div',{className:'content-card',style:{marginBottom:24}},
+          React.createElement('h3',null,'Crear nueva alerta'),
+          React.createElement('div',{className:'field-group'},
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Título del anuncio *'),React.createElement('input',{id:'new-alert-title',className:'field-input',placeholder:'Ej: Nueva convocatoria PECDA 2026'})),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Mensaje'),React.createElement('textarea',{id:'new-alert-msg',className:'field-textarea',rows:3,placeholder:'Detalles importantes...'})),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Enlace (opcional)'),React.createElement('input',{id:'new-alert-link',className:'field-input',placeholder:'https://...'})),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de alerta'),React.createElement('select',{id:'new-alert-type',className:'field-select'},React.createElement('option',{value:'info'},'ℹ️ Información (Azul)'),React.createElement('option',{value:'success'},'✅ Éxito (Verde)'),React.createElement('option',{value:'warning'},'⚠️ Importante (Naranja)'),React.createElement('option',{value:'error'},'🚨 Urgente (Rojo)')))
           ),
-          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:12}},
-            [
-              {name:'Instagram Post — Bienvenida vibrante',url:'https://www.canva.com/d/b2HJDQeqe4329ot',thumb:'https://design.canva.ai/hdxKq32tPnmRbGQ',fmt:'Instagram 1080×1080'},
-              {name:'Instagram Post — Estilo moderno',url:'https://www.canva.com/d/Xfi97I6HNpq6VWP',thumb:'https://design.canva.ai/Lj-OvZ2lx1N6azW',fmt:'Instagram 1080×1080'},
-              {name:'Instagram Post — Artístico',url:'https://www.canva.com/d/xq-v8JJB5d48HZm',thumb:'https://design.canva.ai/FD52KlORN7MZQ4c',fmt:'Instagram 1080×1080'},
-              {name:'Instagram Post — Festivo',url:'https://www.canva.com/d/1EbrxYC4VrZUeFy',thumb:'https://design.canva.ai/SRqPi-zARpltjmd',fmt:'Instagram 1080×1080'},
-              {name:'Story / TikTok — Bold vertical',url:'https://www.canva.com/d/0U90usySYBDZBiV',thumb:'https://design.canva.ai/jGr0G0yWRfdeGNZ',fmt:'Story 1080×1920'},
-              {name:'Story / TikTok — Cultural',url:'https://www.canva.com/d/2wEr2gX68GYs3LB',thumb:'https://design.canva.ai/LkAB81uK5ro9cNA',fmt:'Story 1080×1920'},
-              {name:'Story / TikTok — Abstracto',url:'https://www.canva.com/d/_ub_CKBrgzQr2mM',thumb:'https://design.canva.ai/0bao2nWJTajoN28',fmt:'Story 1080×1920'},
-              {name:'Story / TikTok — Minimalista',url:'https://www.canva.com/d/TmkizqaDD4mTNWd',thumb:'https://design.canva.ai/Bfl09t-zfgMA9rt',fmt:'Story 1080×1920'},
-              {name:'Facebook — Nuevo talento',url:'https://www.canva.com/d/3CYeJy8t1gBMb_u',thumb:'https://design.canva.ai/4Dx6CnSU-lC0x9z',fmt:'Facebook 1200×630'},
-              {name:'Facebook — Bienvenida cálida',url:'https://www.canva.com/d/yCxx_GoWOHNA0MG',thumb:'https://design.canva.ai/fcITHhjQXJDncey',fmt:'Facebook 1200×630'},
-              {name:'Facebook — Artístico moderno',url:'https://www.canva.com/d/abXhGF8sPo36GHq',thumb:'https://design.canva.ai/O4q7qvLZgSz7jKe',fmt:'Facebook 1200×630'},
-              {name:'Facebook — Festivo creativo',url:'https://www.canva.com/d/DF6d7hdteRW9lSX',thumb:'https://design.canva.ai/p7YVi3-jATcUxcY',fmt:'Facebook 1200×630'},
-            ].map(({name,url,thumb,fmt})=>
-              React.createElement('a',{key:url,href:url,target:'_blank',rel:'noopener noreferrer',style:{display:'block',borderRadius:14,overflow:'hidden',border:'2px solid var(--brd)',cursor:'pointer',transition:'all .2s',textDecoration:'none'},
-                onMouseOver:e=>{e.currentTarget.style.borderColor='#7c3aed';e.currentTarget.style.transform='translateY(-3px)';e.currentTarget.style.boxShadow='0 8px 24px rgba(124,58,237,.15)';},
-                onMouseOut:e=>{e.currentTarget.style.borderColor='var(--brd)';e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none';}},
-                React.createElement('div',{style:{position:'relative',paddingBottom:'75%',background:'#f8fafc',overflow:'hidden'}},
-                  React.createElement('img',{src:thumb,alt:name,style:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover'},onError:e=>{e.target.style.display='none';}}),
-                  React.createElement('div',{style:{position:'absolute',top:8,right:8,background:'rgba(124,58,237,.85)',borderRadius:6,padding:'3px 8px',fontSize:9,color:'#fff',fontWeight:700,letterSpacing:1}},fmt)
-                ),
-                React.createElement('div',{style:{padding:'10px 12px',background:'#fff'}},
-                  React.createElement('div',{style:{fontSize:12,fontWeight:600,color:'var(--txt)',marginBottom:2}},name),
-                  React.createElement('div',{style:{fontSize:11,color:'#7c3aed',display:'flex',alignItems:'center',gap:4}},
-                    React.createElement('span',null,'✏️'),'Abrir en Canva para editar y descargar'
-                  )
-                )
-              )
-            )
-          )
+          React.createElement('button',{onClick:async ()=>{
+            const title=document.getElementById('new-alert-title').value.trim();
+            if(!title)return;
+            const alert={
+              id:'al_'+Date.now(),
+              title,
+              msg:document.getElementById('new-alert-msg').value.trim(),
+              link:document.getElementById('new-alert-link').value.trim(),
+              type:document.getElementById('new-alert-type').value,
+              date:new Date().toLocaleDateString('es-MX'),
+              active:true
+            };
+            try {
+              if(window._fbReady&&window._db) {
+                const ref = window._db.collection('nodo').doc('alerts');
+                const snap = await ref.get();
+                let alerts = [];
+                if(snap.exists) alerts = snap.data().v || [];
+                alerts.unshift(alert);
+                await ref.set({v: alerts, ts: Date.now()});
+                window.alert('Alerta publicada con éxito');
+                ['new-alert-title','new-alert-msg','new-alert-link'].forEach(id=>document.getElementById(id).value='');
+              } else {
+                window.alert('Error de conexión a Firebase');
+              }
+            } catch(e) { console.error(e); window.alert('Error al publicar alerta'); }
+          },className:'btn-primary',style:{marginTop:12}},'Publicar Alerta Global')
         ),
-        /* New users list */
-        React.createElement('div',{style:{background:'var(--bgc)',border:'1px solid var(--brd)',borderRadius:14,padding:18}},
-          React.createElement('h3',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,color:'var(--txt)',marginBottom:4}},'👥 Nuevos usuarios — genera su bienvenida'),
-          React.createElement('p',{style:{fontSize:12,color:'var(--txts)',marginBottom:16,lineHeight:1.6}},
-            'Selecciona una plantilla arriba, ábrela en Canva, reemplaza el nombre y la foto, descárgala en PNG alta resolución y publícala en redes.'
-          ),
-          profiles.filter(p=>!p.isDemo).length===0
-            ?React.createElement('div',{className:'empty-state'},React.createElement('div',{style:{fontSize:32,marginBottom:8}},'🎭'),React.createElement('p',null,'Aún no hay usuarios reales. Cuando se registren aparecerán aquí.'))
-            :React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:10}},
-                [...profiles].filter(p=>!p.isDemo)
-                  .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))
-                  .slice(0,15)
-                  .map(p=>React.createElement('div',{key:p.id,style:{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'var(--bg)',border:'1px solid var(--brd)',borderRadius:10}},
-                    React.createElement(Av,{p,size:44}),
-                    React.createElement('div',{style:{flex:1,minWidth:0}},
-                      React.createElement('div',{style:{fontWeight:600,color:'var(--txt)',fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},p.name),
-                      React.createElement('div',{style:{fontSize:12,color:'var(--txts)',marginTop:2}},
-                        ...(p.cats&&p.cats.length>0?p.cats.slice(0,3).map(c=>React.createElement(Badge,{key:c,cat:c,sm:true})):[React.createElement(Badge,{key:'b0',cat:p.cat||'artista'})]),React.createElement('span',null,' · '),muniName(p.muni),' · ',p.createdAt||'Reciente'
-                      )
-                    ),
-                    React.createElement('div',{style:{display:'flex',gap:6,flexShrink:0}},
-                      React.createElement('a',{href:'https://www.canva.com/d/b2HJDQeqe4329ot',target:'_blank',rel:'noopener noreferrer',title:'Generar bienvenida Instagram',style:{width:34,height:34,borderRadius:9,background:'rgba(124,58,237,.1)',border:'1px solid rgba(124,58,237,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,textDecoration:'none',cursor:'pointer'}},'📱'),
-                      React.createElement('a',{href:'https://www.canva.com/d/0U90usySYBDZBiV',target:'_blank',rel:'noopener noreferrer',title:'Generar bienvenida Story/TikTok',style:{width:34,height:34,borderRadius:9,background:'rgba(249,115,22,.08)',border:'1px solid rgba(249,115,22,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,textDecoration:'none',cursor:'pointer'}},'📺'),
-                      React.createElement('a',{href:'https://www.canva.com/d/3CYeJy8t1gBMb_u',target:'_blank',rel:'noopener noreferrer',title:'Generar bienvenida Facebook',style:{width:34,height:34,borderRadius:9,background:'rgba(13,148,136,.08)',border:'1px solid rgba(13,148,136,.25)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,textDecoration:'none',cursor:'pointer'}},'💻')
-                    )
-                  ))
-              )
+        React.createElement('div',{className:'content-card'},
+          React.createElement('h3',null,'Alertas Activas (Requiere recargar para ver cambios)'),
+          React.createElement('p',{style:{fontSize:12,color:'var(--txts)',marginBottom:16}},'Para desactivar una alerta, debes hacerlo directamente en la base de datos de Firebase por ahora (colección nodo, documento alerts).')
         ),
+
         /* ══ ANTORCHA TEMPLATES ══ */
         React.createElement('div',{style:{marginTop:24,marginBottom:24}},
           React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:14}},
