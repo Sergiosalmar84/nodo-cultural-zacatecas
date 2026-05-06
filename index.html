@@ -1344,6 +1344,55 @@ const ShareModal=({p,onClose})=>{
     try{ await navigator.clipboard.writeText(text); setCopyText(true); setTimeout(()=>setCopyText(false),2000);}
     catch(e){}
   };
+  const generateImage = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080; canvas.height = 1080;
+    const ctx = canvas.getContext('2d');
+    
+    // Background
+    ctx.fillStyle = cat.color || '#f97316';
+    ctx.fillRect(0, 0, 1080, 1080);
+    
+    // Inner box
+    ctx.fillStyle = '#ffffff';
+    ctx.roundRect(40, 40, 1000, 1000, 40);
+    ctx.fill();
+    
+    // Text
+    ctx.fillStyle = '#111827';
+    ctx.font = 'bold 80px "Playfair Display", serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.name, 540, 400);
+    
+    ctx.fillStyle = cat.color || '#f97316';
+    ctx.font = '600 40px sans-serif';
+    ctx.fillText(cat.label, 540, 480);
+    
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '40px sans-serif';
+    ctx.fillText(muniName(p.muni) + ', Zacatecas', 540, 560);
+    
+    // Call to action
+    ctx.fillStyle = cat.color || '#f97316';
+    ctx.roundRect(240, 700, 600, 100, 50);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 40px sans-serif';
+    ctx.fillText('Visita mi perfil en nodoart.mx', 540, 765);
+    
+    // Logo text
+    ctx.fillStyle = '#111827';
+    ctx.font = 'bold 50px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('NODO ART', 80, 960);
+    
+    // Download
+    const link = document.createElement('a');
+    link.download = `nodoart_${p.name.replace(/\s+/g,'_')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+
   const shareNative=()=>{
     if(navigator.share){
       navigator.share({title:'NODO ART — '+p.name,text:shortText,url});
@@ -1714,26 +1763,17 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
       let newU;
       if(uDoc.exists){
         newU={...uDoc.data(),id:fbUser.uid};
+        onLogin(newU);showToast('¡Bienvenido, '+newU.name+'!');onClose();
+        if(onAfterRegister)onAfterRegister(newU);
       }else{
-        newU={id:fbUser.uid,email:fbUser.email||'',name:fbUser.displayName||fbUser.email?.split('@')[0]||'Usuario',role:'user',photo:fbUser.photoURL||null,cat:'artista',cats:['artista'],phone:'',joinedAt:fmtDate()};
-        await _db.collection('users').doc(fbUser.uid).set(newU);
-        /* Auto-create profile */
-        try{
-          const profRef=_db.collection('nodo').doc('profiles');
-          await _db.runTransaction(async tx=>{
-            const snap=await tx.get(profRef);
-            const existing=snap.exists?(snap.data().v||[]):[];
-            if(existing.some(p=>p.userId===fbUser.uid))return;
-            const autoP={id:'social_'+fbUser.uid,userId:fbUser.uid,name:newU.name,cat:'artista',cats:['artista'],email:newU.email,phone:'',bio:'',sobre:'',tags:[],muni:'zac',cp:'',photo:fbUser.photoURL||null,portfolio:[],convocatorias:[],proyectos:[],ig:'',web:'',status:'approved',approvedAt:fmtDate(),verified:true,isDemo:false,isAutoProfile:true,createdAt:fmtDate(),conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{},hidden:false};
-            // Safe update preserving existing profiles
-            const updatedExisting = existing.map(p => { return p; });
-            tx.set(profRef,{v:[autoP,...updatedExisting],ts:Date.now()});
-          });
-          notifyAdmin('🆕 Nuevo registro ('+provider+'): '+newU.name,'Nombre: '+newU.name+'\nCorreo: '+newU.email+'\nVía: '+provider+'\n\nnodoart.mx');
-        }catch(e2){console.warn('Auto-profile social error:',e2);}
+        // Require profile creation before allowing login
+        setMode('register');
+        setEmail(fbUser.email||'');
+        setName(fbUser.displayName||fbUser.email?.split('@')[0]||'');
+        setErr('Por favor, completa tu perfil para continuar.');
+        // We delete the user so they are forced to register through the form
+        await _auth.currentUser.delete();
       }
-      onLogin(newU);showToast('¡Bienvenido, '+newU.name+'!');onClose();
-      if(onAfterRegister)onAfterRegister(newU);
     }catch(e){
       if(e.code==='auth/popup-closed-by-user'){}/* user closed popup, no error */
       else if(e.code==='auth/account-exists-with-different-credential')setErr('Ya existe una cuenta con ese correo. Inicia sesión con correo y contraseña.');
@@ -2015,8 +2055,47 @@ const PCard=({p,onClick})=>{const c=catInfo(getCatId(p||{}));return React.create
 );};
 /* ── HOME PAGE ── */
 const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
-  const [homeTab,setHomeTab]=useState('feed');
-  const featured=profiles.filter(p=>p.verified).slice(0,5);
+    const [homeTab, setHomeTab] = React.useState('feed');
+    const [showGlobalAlertsPopup, setShowGlobalAlertsPopup] = React.useState(false);
+    const [globalAlerts, setGlobalAlerts] = React.useState([]);
+    
+    React.useEffect(() => {
+      let mounted = true;
+      const loadAlerts = async () => {
+        let attempts = 0;
+        while((!window._fbReady || !window._db) && attempts < 50) {
+          await new Promise(r => setTimeout(r, 100));
+          attempts++;
+        }
+        if(mounted && window._fbReady && window._db) {
+          try {
+            const snap = await window._db.collection('nodo').doc('alerts').get();
+            if(mounted && snap.exists) {
+              const alts = snap.data().v || [];
+              setGlobalAlerts(alts);
+              // Mostrar popup si hay alertas activas que el usuario no ha visto
+              const activeAlerts = alts.filter(a => a.active);
+              if(activeAlerts.length > 0) {
+                const lastSeen = localStorage.getItem('nodo_last_seen_alert');
+                if(!lastSeen || parseInt(lastSeen) < activeAlerts[0].ts) {
+                  setShowGlobalAlertsPopup(true);
+                }
+              }
+            }
+          } catch(e) {}
+        }
+      };
+      loadAlerts();
+      return () => { mounted = false; };
+    }, []);
+    
+    const closeAlertsPopup = () => {
+      setShowGlobalAlertsPopup(false);
+      if(globalAlerts.length > 0) {
+        localStorage.setItem('nodo_last_seen_alert', globalAlerts[0].ts.toString());
+      }
+    };
+    const featured=profiles.filter(p=>p.verified).slice(0,5);
   /* Crowdfunding campaigns sorted by % to goal — closest first */
   const activeCampaigns=useMemo(()=>{
     const items=[];
@@ -2058,8 +2137,55 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
     const rest=items.slice(8).sort(()=>Math.random()-.5);
     return [...top,...rest].slice(0,20);
   },[profiles,refreshTick]);
-  return React.createElement('div',{className:'view'},
-    !currentUser&&React.createElement(VisitorBanner,{onAuthClick}),
+    return React.createElement('div',{className:'view'},
+      showGlobalAlertsPopup && globalAlerts.filter(a => a.active).length > 0 && React.createElement('div', {
+        style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }
+      },
+        React.createElement('div', {
+          style: { background: 'var(--bgc)', borderRadius: 16, width: '100%', maxWidth: 500, maxHeight: '80vh', overflow: 'auto', padding: 24, position: 'relative', border: '1px solid var(--brd)' }
+        },
+          React.createElement('button', {
+            onClick: closeAlertsPopup,
+            style: { position: 'absolute', top: 16, right: 16, background: 'var(--bg)', border: 'none', width: 32, height: 32, borderRadius: 16, fontSize: 18, cursor: 'pointer', color: 'var(--txt)', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+          }, '×'),
+          React.createElement('h2', { style: { fontFamily: 'museo-sans,sans-serif', fontSize: 22, color: 'var(--txt)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 } },
+            '🔔', 'Anuncios Importantes'
+          ),
+          React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+            globalAlerts.filter(a => a.active).slice(0, 3).map(al => {
+              let bg, border, icon;
+              if(al.type === 'success') { bg = 'rgba(34,197,94,.08)'; border = 'rgba(34,197,94,.2)'; icon = '✅'; }
+              else if(al.type === 'warning') { bg = 'rgba(249,115,22,.08)'; border = 'rgba(249,115,22,.2)'; icon = '⚠️'; }
+              else if(al.type === 'error') { bg = 'rgba(239,68,68,.08)'; border = 'rgba(239,68,68,.2)'; icon = '🚨'; }
+              else { bg = 'rgba(59,130,246,.08)'; border = 'rgba(59,130,246,.2)'; icon = 'ℹ️'; }
+              
+              return React.createElement('div', { key: al.id, style: { background: bg, border: '1px solid ' + border, borderRadius: 12, padding: 16 } },
+                React.createElement('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 12 } },
+                  React.createElement('div', { style: { fontSize: 24 } }, icon),
+                  React.createElement('div', { style: { flex: 1 } },
+                    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                      React.createElement('div', { style: { fontFamily: 'museo-sans,sans-serif', fontSize: 16, fontWeight: 700, color: 'var(--txt)' } }, al.title),
+                      React.createElement('div', { style: { fontSize: 11, color: 'var(--txtm)' } }, al.date)
+                    ),
+                    React.createElement('div', { style: { fontSize: 14, color: 'var(--txt)', lineHeight: 1.5, marginTop: 6, whiteSpace: 'pre-wrap' } }, al.msg),
+                    al.link && React.createElement('a', { href: al.link, target: '_blank', rel: 'noopener noreferrer', style: { display: 'inline-block', marginTop: 8, color: 'var(--amb)', fontWeight: 600, fontSize: 13, textDecoration: 'none' } }, 'Ver más →'),
+                    al.images && al.images.length > 0 && React.createElement('div', { style: { display: 'grid', gridTemplateColumns: al.images.length > 1 ? '1fr 1fr' : '1fr', gap: 8, marginTop: 12 } },
+                      al.images.map((img, i) => React.createElement('div', { key: i, style: { borderRadius: 8, overflow: 'hidden', paddingBottom: '60%', position: 'relative', background: '#000' } },
+                        React.createElement('img', { src: img, style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }, loading: 'lazy' })
+                      ))
+                    )
+                  )
+                )
+              );
+            })
+          ),
+          React.createElement('button', {
+            onClick: closeAlertsPopup,
+            style: { width: '100%', padding: '14px', background: 'var(--amb)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, marginTop: 24, cursor: 'pointer' }
+          }, 'Entendido')
+        )
+      ),
+      !currentUser&&React.createElement(VisitorBanner,{onAuthClick}),
     React.createElement('div',{className:'hero'},
       React.createElement('div',{className:'hero-label'},'Red Cultural de Zacatecas'),
       React.createElement('h1',{className:'hero-h1'},'El ecosistema ',React.createElement('em',null,'cultural'),' de',React.createElement('br',null),'Zacatecas, en red'),
@@ -2342,14 +2468,14 @@ const DirPage=({profiles,go,setProf})=>{
 };
 /* ── PROFILE PAGE ── */
 const PROFILE_THEMES = [
-  {id:'default', name:'Predeterminado', color:'var(--amb)', bg:'linear-gradient(135deg, rgba(196,97,30,0.05), rgba(196,97,30,0.01))'},
-  {id:'dark', name:'Noche Oscura', color:'#a8b2d1', bg:'linear-gradient(135deg, #1e293b, #0f172a)'},
-  {id:'neon', name:'Cyber Neon', color:'#f472b6', bg:'linear-gradient(135deg, rgba(244,114,182,0.1), rgba(56,189,248,0.1))'},
-  {id:'nature', name:'Bosque Profundo', color:'#4ade80', bg:'linear-gradient(135deg, rgba(74,222,128,0.08), rgba(20,83,45,0.05))'},
-  {id:'sunset', name:'Atardecer', color:'#fb923c', bg:'linear-gradient(135deg, rgba(251,146,60,0.1), rgba(225,29,72,0.05))'},
-  {id:'ocean', name:'Océano', color:'#38bdf8', bg:'linear-gradient(135deg, rgba(56,189,248,0.1), rgba(30,58,138,0.05))'},
-  {id:'vintage', name:'Sepia Vintage', color:'#d4a373', bg:'linear-gradient(135deg, rgba(212,163,115,0.15), rgba(120,53,15,0.05))'},
-  {id:'minimal', name:'Minimalista Blanco', color:'#52525b', bg:'#ffffff'}
+  {id:'default', name:'Naranja NODO', color:'#f97316', bg:'linear-gradient(135deg, rgba(249,115,22,0.08), rgba(249,115,22,0.02))', txt:'#111827', txts:'#4b5563'},
+  {id:'zacatecas', name:'Cantera Rosa', color:'#e11d48', bg:'linear-gradient(135deg, rgba(225,29,72,0.08), rgba(225,29,72,0.02))', txt:'#111827', txts:'#4b5563'},
+  {id:'plata', name:'Plata Colonial', color:'#6366f1', bg:'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.02))', txt:'#111827', txts:'#4b5563'},
+  {id:'jerez', name:'Verde Jerez', color:'#10b981', bg:'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.02))', txt:'#111827', txts:'#4b5563'},
+  {id:'sombrerete', name:'Oro Sombrerete', color:'#d97706', bg:'linear-gradient(135deg, rgba(217,119,6,0.08), rgba(217,119,6,0.02))', txt:'#111827', txts:'#4b5563'},
+  {id:'noche', name:'Noche Zacatecana', color:'#8b5cf6', bg:'linear-gradient(135deg, #1e1b4b, #0f172a)', txt:'#f3f4f6', txts:'#9ca3af'},
+  {id:'mina', name:'Profundidad Mina', color:'#14b8a6', bg:'linear-gradient(135deg, #064e3b, #022c22)', txt:'#f3f4f6', txts:'#9ca3af'},
+  {id:'barroco', name:'Barroco Oscuro', color:'#f43f5e', bg:'linear-gradient(135deg, #4c0519, #28030e)', txt:'#f3f4f6', txts:'#9ca3af'}
 ];
 
 const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNotifForAll,setProf,onStartChat})=>{
@@ -2405,7 +2531,25 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
           React.createElement('div',{style:{display:'flex',gap:10,alignItems:'center',marginTop:8,flexWrap:'wrap'}},...(p.cats&&p.cats.length>1?p.cats.slice(0,3).map(c=>React.createElement(Badge,{key:c,cat:c,sm:true})):[React.createElement(Badge,{key:'c0',cat:p.cat||'artista'})]),React.createElement('span',{style:{color:'var(--txts)',fontSize:13}},muniName(p.muni),', Zacatecas'),p.cp&&React.createElement('span',{style:{fontSize:11,color:'var(--txtm)',fontFamily:'DM Mono,monospace'}},'CP '+p.cp))
         ),
         React.createElement('div',{className:'profile-actions'},
-          showShare&&React.createElement(ShareModal,{p,onClose:()=>setShowShare(false)}),
+          React.createElement('button',{className:'btn-secondary',onClick:()=>setShowShare(true)},React.createElement(Ic,{n:'share',size:14}),'Compartir'),
+          showShare&&React.createElement('div',{className:'modal-overlay',onClick:e=>{if(e.target===e.currentTarget)setShowShare(false);}},
+            React.createElement('div',{className:'modal-card fadein',style:{maxWidth:400,textAlign:'center'}},
+              React.createElement('button',{className:'modal-close',onClick:()=>setShowShare(false)},React.createElement(Ic,{n:'x',size:15,color:'#9b8e7e'})),
+              React.createElement('h2',{style:{fontFamily:'Playfair Display,serif',fontSize:22,color:'var(--txt)',marginBottom:16}},'Compartir perfil'),
+              React.createElement('div',{style:{background:c.color+'15',border:'1px solid '+c.color+'30',borderRadius:12,padding:20,marginBottom:20}},
+                React.createElement('div',{style:{width:80,height:80,borderRadius:40,background:c.color+'30',margin:'0 auto 12px',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32,fontWeight:700,color:c.color}},p.photo?React.createElement('img',{src:p.photo,style:{width:'100%',height:'100%',objectFit:'cover'}}):initials(p.name)),
+                React.createElement('h3',{style:{fontFamily:'Playfair Display,serif',fontSize:20,color:'var(--txt)',margin:0}},p.name),
+                React.createElement('div',{style:{fontSize:13,color:'var(--txtm)',marginTop:4}},catInfo(p.cat).label),
+                React.createElement('div',{style:{fontSize:16,fontWeight:700,color:c.color,marginTop:16}},'Visita mi perfil en nodoart.mx')
+              ),
+              React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+                React.createElement('button',{className:'btn-secondary',style:{justifyContent:'center'},onClick:()=>window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url))},'Facebook'),
+                React.createElement('button',{className:'btn-secondary',style:{justifyContent:'center'},onClick:()=>window.open('https://twitter.com/intent/tweet?url='+encodeURIComponent(url)+'&text='+encodeURIComponent('Visita mi perfil en NODO ART'))},'X (Twitter)'),
+                React.createElement('button',{className:'btn-secondary',style:{justifyContent:'center'},onClick:()=>window.open('https://wa.me/?text='+encodeURIComponent('Visita mi perfil en NODO ART: '+url))},'WhatsApp'),
+                React.createElement('button',{className:'btn-secondary',style:{justifyContent:'center'},onClick:generateImage},'Descargar Imagen')
+              )
+            )
+          ),
           /* WhatsApp connect button */
           p.phone&&!isOwn&&React.createElement('button',{
             className:'btn-connect',
