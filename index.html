@@ -598,6 +598,10 @@ const DB={
   },
   async set(key,val,shared=false){
     if(_fbReady&&shared){
+      // Evitar escribir en notifs y session que no son globales
+      if(key.startsWith('notifs:') || key === 'session' || key === 'users' || key === 'profiles' || key === 'posts') {
+        return LS.set(shared?'s_'+key:key,val);
+      }
       try{await _db.collection('nodo').doc(key).set({v:val,ts:Date.now()});return true;}catch(e){console.warn('Firestore write failed',e);}
     }
     return LS.set(shared?'s_'+key:key,val);
@@ -1701,7 +1705,7 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
     setErr('');setSocialLoading(provider);
     if(!_fbReady||!_auth){setErr('Firebase no disponible.');return;}
     try{
-      const providerObj=provider==='google'?window._googleProvider:window._facebookProvider;
+      const providerObj=provider==='google'?(window._googleProvider || new firebase.auth.GoogleAuthProvider()):(window._facebookProvider || new firebase.auth.FacebookAuthProvider());
       if(!providerObj){setErr('Proveedor no disponible.');setSocialLoading('');return;}
       const result=await _auth.signInWithPopup(providerObj);
       const fbUser=result.user;
