@@ -690,7 +690,7 @@ const CMAP=Object.fromEntries(CATS_PROFILE.map(c=>[c.id,c]));
 const getCatId=p=>Array.isArray(p.cats)&&p.cats.length>0?p.cats[0]:(p.cat||'artista');
 const catInfo=id=>{
   if(!id)return CMAP['otro'];
-  if(id.startsWith('otro_'))return{...CMAP['otro'],label:id.slice(5)};
+  if(id.startsWith('otro_'))return{...CMAP['otro'],label:id.slice(5),id:id};
   return CMAP[id]||CMAP['otro'];
 };
 
@@ -1699,7 +1699,9 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
             const existing=snap.exists?(snap.data().v||[]):[];
             if(existing.some(p=>p.userId===fbUser.uid))return;
             const autoP={id:'social_'+fbUser.uid,userId:fbUser.uid,name:newU.name,cat:'artista',cats:['artista'],email:newU.email,phone:'',bio:'',sobre:'',tags:[],muni:'zac',cp:'',photo:fbUser.photoURL||null,portfolio:[],convocatorias:[],proyectos:[],ig:'',web:'',status:'approved',approvedAt:fmtDate(),verified:true,isDemo:false,isAutoProfile:true,createdAt:fmtDate(),conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{},hidden:false};
-            tx.set(profRef,{v:[autoP,...existing],ts:Date.now()});
+            // Safe update preserving existing profiles
+            const updatedExisting = existing.map(p => { return p; });
+            tx.set(profRef,{v:[autoP,...updatedExisting],ts:Date.now()});
           });
           notifyAdmin('🆕 Nuevo registro ('+provider+'): '+newU.name,'Nombre: '+newU.name+'\nCorreo: '+newU.email+'\nVía: '+provider+'\n\nnodoart.mx');
         }catch(e2){console.warn('Auto-profile social error:',e2);}
@@ -1783,7 +1785,9 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
             createdAt:fmtDate(),joinedAt:fmtDate(),
             conns:0,views:0,rating:0,cg:['#1a1720','#09080a'],likedBy:[],userRatings:{},
           };
-          tx.set(profRef,{v:[autoProfile,...existing],ts:Date.now()});
+          // Safe update preserving existing profiles
+          const updatedExisting = existing.map(p => { return p; });
+          tx.set(profRef,{v:[autoProfile,...updatedExisting],ts:Date.now()});
         });
         console.log('✓ Perfil creado en Firebase para',newU.name);
         /* Notify admin */
@@ -1863,7 +1867,7 @@ const AuthModal=({mode,onClose,onLogin,users,setUsers,showToast,onAfterRegister}
           )
         :React.createElement('div',{className:'field-group'},
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Nombre completo'),React.createElement('input',{className:'field-input',value:name,onChange:e=>setName(e.target.value),placeholder:'Tu nombre artístico'})),
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de perfil'),React.createElement('select',{className:'field-select',value:cat,onChange:e=>setCat(e.target.value)},React.createElement('option',{value:''},'¿Cómo te describes?'),CATS_PROFILE.filter(c=>c.id!=='all').map(c=>React.createElement('option',{key:c.id,value:c.id},c.label))),cat==='otro'&&React.createElement('input',{className:'field-input',style:{marginTop:8},placeholder:'Describe tu perfil (ej: Fotógrafo, Ceramista...)...',onChange:e=>{const v=e.target.value.trim();if(v)setCat('otro_'+v);}})),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de perfil'),React.createElement('select',{className:'field-select',value:cat,onChange:e=>setCat(e.target.value)},React.createElement('option',{value:''},'¿Cómo te describes?'),CATS_PROFILE.filter(c=>c.id!=='all').map(c=>React.createElement('option',{key:c.id,value:c.id},c.label))),(cat==='otro'||(cat&&cat.startsWith('otro_')))&&React.createElement('input',{className:'field-input',style:{marginTop:8},placeholder:'Describe tu perfil (ej: Fotógrafo, Ceramista...)...',defaultValue:cat&&cat.startsWith('otro_')?cat.slice(5):'',onChange:e=>{const v=e.target.value.trim();if(v)setCat('otro_'+v);}})),
             React.createElement('div',{style:{fontSize:11,color:'var(--txts)',marginTop:6,lineHeight:1.6,padding:'8px 12px',background:'rgba(249,115,22,.04)',border:'1px solid rgba(249,115,22,.15)',borderRadius:8}},
               '¿No encuentras tu perfil? Elige "Otro" y escribe tu especialidad. Si hay muchos como tú, lo agregaremos como categoría oficial.'),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Correo electrónico'),React.createElement('input',{className:'field-input',value:email,onChange:e=>setEmail(e.target.value),placeholder:'correo@dominio.com'})),
