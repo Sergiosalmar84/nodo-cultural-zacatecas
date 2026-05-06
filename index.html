@@ -2149,10 +2149,10 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
       },
         React.createElement('div', {
           className: 'modal-card fadein',
-          style: { maxWidth: 500, padding: 0, overflow: 'hidden' }
+          style: { maxWidth: 500, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '85vh' }
         },
           React.createElement('div', {
-            style: { position: 'relative', background: 'var(--amb)', color: '#fff', padding: '24px 24px 40px', textAlign: 'center' }
+            style: { position: 'relative', background: 'var(--amb)', color: '#fff', padding: '24px 24px 40px', textAlign: 'center', flexShrink: 0 }
           },
             React.createElement('button', {
               onClick: closeAlertsPopup,
@@ -2161,7 +2161,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
             React.createElement('div', { style: { fontSize: 40, marginBottom: 8 } }, '🔔'),
             React.createElement('h2', { style: { fontFamily: 'Playfair Display,serif', fontSize: 26, margin: 0, fontWeight: 700 } }, 'Novedades en NODO ART')
           ),
-          React.createElement('div', { style: { padding: '0 24px 24px', marginTop: -20, display: 'flex', flexDirection: 'column', gap: 16 } },
+          React.createElement('div', { style: { padding: '0 24px 24px', marginTop: -20, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', flex: 1 } },
             globalAlerts.filter(a => a.active).slice(0, 3).map(al => {
               let bg, border, icon;
               if(al.type === 'success') { bg = 'rgba(34,197,94,.08)'; border = 'rgba(34,197,94,.2)'; icon = '✅'; }
@@ -2188,7 +2188,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
             }),
             React.createElement('button', {
               onClick: closeAlertsPopup,
-              style: { width: '100%', padding: '14px', background: 'var(--amb)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, marginTop: 8, cursor: 'pointer', position: 'relative', zIndex: 10 }
+              style: { width: '100%', padding: '14px', background: 'var(--amb)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, marginTop: 8, cursor: 'pointer', position: 'relative', zIndex: 10, flexShrink: 0 }
             }, 'Entendido')
           )
         )
@@ -2264,24 +2264,20 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
                 else if(al.type === 'error') { bg = 'rgba(239,68,68,.08)'; border = 'rgba(239,68,68,.2)'; icon = '🚨'; }
                 else { bg = 'rgba(59,130,246,.08)'; border = 'rgba(59,130,246,.2)'; icon = 'ℹ️'; }
                 
-                return React.createElement('div',{key:al.id,className:'post-card',style:{background:bg,border:'1px solid '+border}},
-                  React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}},
-                    React.createElement('div',{style:{fontSize:24}},icon),
-                    React.createElement('div',{style:{flex:1}},
-                      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
-                        React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},al.title),
-                        React.createElement('div',{style:{fontSize:11,color:'var(--txtm)'}},al.date)
-                      ),
-                      React.createElement('div',{style:{fontSize:14,color:'var(--txt)',lineHeight:1.5,marginTop:6,whiteSpace:'pre-wrap'}},al.msg),
-                      al.link && React.createElement('a',{href:al.link,target:'_blank',rel:'noopener noreferrer',style:{display:'inline-block',marginTop:8,color:'var(--amb)',fontWeight:600,fontSize:13,textDecoration:'none'}},'Ver más →'),
-                      
-                      // Render images if any
-                      al.images && al.images.length > 0 && React.createElement('div',{style:{display:'grid',gridTemplateColumns:al.images.length>1?'1fr 1fr':'1fr',gap:8,marginTop:12}},
-                        al.images.map((img, i) => React.createElement('div',{key:i,style:{borderRadius:8,overflow:'hidden',paddingBottom:'60%',position:'relative',background:'#000'}},
-                          React.createElement('img',{src:img,style:{position:'absolute',top:0,left:0,width:'100%',height:'100%',objectFit:'cover'},loading:'lazy'})
-                        ))
+                   return React.createElement('div',{key:al.id,className:'post-card',style:{background:bg,border:'1px solid '+border,display:'flex',gap:12,alignItems:'flex-start'}},
+                  al.images && al.images.length > 0 && React.createElement('div',{style:{width:90,height:90,borderRadius:8,overflow:'hidden',flexShrink:0,background:'#000'}},
+                    React.createElement('img',{src:al.images[0],style:{width:'100%',height:'100%',objectFit:'cover'},loading:'lazy'})
+                  ),
+                  React.createElement('div',{style:{flex:1,minWidth:0}},
+                    React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:8,marginBottom:8}},
+                      React.createElement('div',{style:{fontSize:20,flexShrink:0}},icon),
+                      React.createElement('div',{style:{flex:1}},
+                        React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:14,fontWeight:700,color:'var(--txt)'}},al.title),
+                        React.createElement('div',{style:{fontSize:10,color:'var(--txtm)',marginTop:2}},al.date)
                       )
-                    )
+                    ),
+                    React.createElement('div',{style:{fontSize:13,color:'var(--txt)',lineHeight:1.4,marginBottom:8,whiteSpace:'pre-wrap'}},al.msg),
+                    al.link && React.createElement('a',{href:al.link,target:'_blank',rel:'noopener noreferrer',style:{display:'inline-block',color:'var(--amb)',fontWeight:600,fontSize:12,textDecoration:'none'}},'Ver mas')
                   )
                 );
               })
@@ -3356,8 +3352,8 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
           React.createElement('p',{style:{fontSize:12,color:'var(--txts)',marginBottom:16}},'Para desactivar una alerta, debes hacerlo directamente en la base de datos de Firebase por ahora (colección nodo, documento alerts).')
         ),
 
-        /* ══ ANTORCHA TEMPLATES ══ */
-        React.createElement('div',{style:{marginTop:24,marginBottom:24}},
+        /* Sección de Plantillas de Antorcha eliminada */
+        React.createElement('div',{style:{display:'none'}},
           React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:14}},
             React.createElement('div',{style:{fontSize:22}},'🔥'),
             React.createElement('div',null,
@@ -3402,6 +3398,7 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
           '2. En Canva: reemplaza el nombre, foto y categoría del usuario',React.createElement('br',null),
           '3. Haz clic en "Compartir" → "Descargar" → elige PNG alta resolución',React.createElement('br',null),
           '4. Publica en tus redes sociales de NODO ART 🔥'
+        )
         )
       )
     )
