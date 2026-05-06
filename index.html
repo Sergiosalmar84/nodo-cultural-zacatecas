@@ -575,6 +575,10 @@ let _db=null,_storage=null,_auth=null,_fbReady=false;
     window._googleProvider = new firebase.auth.GoogleAuthProvider();
     window._facebookProvider = new firebase.auth.FacebookAuthProvider();
     _fbReady=true;
+    window._fbReady=true;
+    window._db=_db;
+    window._storage=_storage;
+    window._auth=_auth;
     console.log('Firebase conectado ✓');
   }catch(e){console.warn('Firebase no configurado, usando localStorage',e);}
 })();
