@@ -1997,7 +1997,7 @@ const Navbar=({view,go,currentUser,onLogout,onAuthClick,notifs,setNotifs,onRetur
               hasProfile&&React.createElement('button',{className:'drop-item',onClick:()=>{if(onGoToProfile)onGoToProfile();setShowDrop(false);}},React.createElement(Ic,{n:'user',size:14,color:'var(--amb)'}),'Mi perfil'),
               !hasProfile&&React.createElement('button',{className:'drop-item',onClick:()=>{go('create');setShowDrop(false);}},React.createElement(Ic,{n:'plus',size:14}),'Crear perfil'),
               React.createElement('div',{className:'drop-sep'}),
-              React.createElement('button',{className:'drop-item danger',onClick:async()=>{await DB.del('session');onLogout();setShowDrop(false);}},React.createElement(Ic,{n:'logout',size:14,color:'#c0392b'}),'Cerrar sesión')
+              React.createElement('button',{className:'drop-item danger',onClick:async()=>{await DB.del('session');localStorage.removeItem('nodo_last_seen_alert');onLogout();setShowDrop(false);}},React.createElement(Ic,{n:'logout',size:14,color:'#c0392b'}),'Cerrar sesión')
             )
           )
         :React.createElement('button',{className:'btn-join',onClick:()=>onAuthClick('login')},React.createElement(Ic,{n:'user',size:14,color:'#fff'}),'Entrar')
@@ -2077,6 +2077,7 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
               const activeAlerts = alts.filter(a => a.active);
               if(activeAlerts.length > 0) {
                 const lastSeen = localStorage.getItem('nodo_last_seen_alert');
+                // Si nunca lo ha visto o la alerta más reciente es más nueva que la última vista
                 if(!lastSeen || parseInt(lastSeen) < activeAlerts[0].ts) {
                   setShowGlobalAlertsPopup(true);
                 }
@@ -2091,7 +2092,11 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
     
     const closeAlertsPopup = () => {
       setShowGlobalAlertsPopup(false);
-      if(globalAlerts.length > 0) {
+      // Guardar el ts de la alerta más reciente para no volver a mostrarla
+      const activeAlerts = globalAlerts.filter(a => a.active);
+      if(activeAlerts.length > 0) {
+        localStorage.setItem('nodo_last_seen_alert', activeAlerts[0].ts.toString());
+      } else if(globalAlerts.length > 0) {
         localStorage.setItem('nodo_last_seen_alert', globalAlerts[0].ts.toString());
       }
     };
@@ -2139,27 +2144,35 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
   },[profiles,refreshTick]);
     return React.createElement('div',{className:'view'},
       showGlobalAlertsPopup && globalAlerts.filter(a => a.active).length > 0 && React.createElement('div', {
-        style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }
+        className: 'modal-overlay',
+        onClick: e => { if(e.target === e.currentTarget) closeAlertsPopup(); }
       },
         React.createElement('div', {
-          style: { background: 'var(--bgc)', borderRadius: 16, width: '100%', maxWidth: 500, maxHeight: '80vh', overflow: 'auto', padding: 24, position: 'relative', border: '1px solid var(--brd)' }
+          className: 'modal-card fadein',
+          style: { maxWidth: 500, padding: 0, overflow: 'hidden' }
         },
-          React.createElement('button', {
-            onClick: closeAlertsPopup,
-            style: { position: 'absolute', top: 16, right: 16, background: 'var(--bg)', border: 'none', width: 32, height: 32, borderRadius: 16, fontSize: 18, cursor: 'pointer', color: 'var(--txt)', display: 'flex', alignItems: 'center', justifyContent: 'center' }
-          }, '×'),
-          React.createElement('h2', { style: { fontFamily: 'museo-sans,sans-serif', fontSize: 22, color: 'var(--txt)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 } },
-            '🔔', 'Anuncios Importantes'
+          React.createElement('div', {
+            style: { position: 'relative', background: 'var(--amb)', color: '#fff', padding: '24px 24px 40px', textAlign: 'center' }
+          },
+            React.createElement('button', {
+              onClick: closeAlertsPopup,
+              style: { position: 'absolute', top: 16, right: 16, background: 'rgba(0,0,0,0.2)', border: 'none', width: 32, height: 32, borderRadius: 16, fontSize: 18, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }
+            }, '×'),
+            React.createElement('div', { style: { fontSize: 40, marginBottom: 8 } }, '🔔'),
+            React.createElement('h2', { style: { fontFamily: 'Playfair Display,serif', fontSize: 26, margin: 0, fontWeight: 700 } }, 'Novedades en NODO ART')
           ),
-          React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+          React.createElement('div', { style: { padding: '0 24px 24px', marginTop: -20, display: 'flex', flexDirection: 'column', gap: 16 } },
             globalAlerts.filter(a => a.active).slice(0, 3).map(al => {
               let bg, border, icon;
               if(al.type === 'success') { bg = 'rgba(34,197,94,.08)'; border = 'rgba(34,197,94,.2)'; icon = '✅'; }
               else if(al.type === 'warning') { bg = 'rgba(249,115,22,.08)'; border = 'rgba(249,115,22,.2)'; icon = '⚠️'; }
               else if(al.type === 'error') { bg = 'rgba(239,68,68,.08)'; border = 'rgba(239,68,68,.2)'; icon = '🚨'; }
-              else { bg = 'rgba(59,130,246,.08)'; border = 'rgba(59,130,246,.2)'; icon = 'ℹ️'; }
+              else { bg = 'var(--bg)'; border = 'var(--brd)'; icon = 'ℹ️'; }
               
-              return React.createElement('div', { key: al.id, style: { background: bg, border: '1px solid ' + border, borderRadius: 12, padding: 16 } },
+              return React.createElement('div', { key: al.id, style: { background: bg, border: '1px solid ' + border, borderRadius: 12, padding: 16, zIndex: 10, position: 'relative' } },
+                al.images && al.images.length > 0 && React.createElement('div', { style: { display: 'block', marginBottom: 16, borderRadius: 8, overflow: 'hidden', maxHeight: 200, position: 'relative', background: '#000' } },
+                  React.createElement('img', { src: al.images[0], style: { width: '100%', height: '100%', objectFit: 'contain', display: 'block' }, loading: 'lazy' })
+                ),
                 React.createElement('div', { style: { display: 'flex', alignItems: 'flex-start', gap: 12 } },
                   React.createElement('div', { style: { fontSize: 24 } }, icon),
                   React.createElement('div', { style: { flex: 1 } },
@@ -2168,21 +2181,16 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
                       React.createElement('div', { style: { fontSize: 11, color: 'var(--txtm)' } }, al.date)
                     ),
                     React.createElement('div', { style: { fontSize: 14, color: 'var(--txt)', lineHeight: 1.5, marginTop: 6, whiteSpace: 'pre-wrap' } }, al.msg),
-                    al.link && React.createElement('a', { href: al.link, target: '_blank', rel: 'noopener noreferrer', style: { display: 'inline-block', marginTop: 8, color: 'var(--amb)', fontWeight: 600, fontSize: 13, textDecoration: 'none' } }, 'Ver más →'),
-                    al.images && al.images.length > 0 && React.createElement('div', { style: { display: 'grid', gridTemplateColumns: al.images.length > 1 ? '1fr 1fr' : '1fr', gap: 8, marginTop: 12 } },
-                      al.images.map((img, i) => React.createElement('div', { key: i, style: { borderRadius: 8, overflow: 'hidden', paddingBottom: '60%', position: 'relative', background: '#000' } },
-                        React.createElement('img', { src: img, style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }, loading: 'lazy' })
-                      ))
-                    )
+                    al.link && React.createElement('a', { href: al.link, target: '_blank', rel: 'noopener noreferrer', style: { display: 'inline-block', marginTop: 8, color: 'var(--amb)', fontWeight: 600, fontSize: 13, textDecoration: 'none' } }, 'Ver más →')
                   )
                 )
               );
-            })
-          ),
-          React.createElement('button', {
-            onClick: closeAlertsPopup,
-            style: { width: '100%', padding: '14px', background: 'var(--amb)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, marginTop: 24, cursor: 'pointer' }
-          }, 'Entendido')
+            }),
+            React.createElement('button', {
+              onClick: closeAlertsPopup,
+              style: { width: '100%', padding: '14px', background: 'var(--amb)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, marginTop: 8, cursor: 'pointer', position: 'relative', zIndex: 10 }
+            }, 'Entendido')
+          )
         )
       ),
       !currentUser&&React.createElement(VisitorBanner,{onAuthClick}),
@@ -2236,86 +2244,48 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
               })
             ),
           homeTab==='anuncios'&&React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:16}},
-            // Global Alerts
-            (()=>{
-              const [alerts, setAlerts] = React.useState([]);
-              const [loadingAlerts, setLoadingAlerts] = React.useState(true);
-              
-              React.useEffect(() => {
-                let mounted = true;
-                const loadAlerts = async () => {
-                  let attempts = 0;
-                  while((!window._fbReady || !window._db) && attempts < 50) {
-                    await new Promise(r => setTimeout(r, 100));
-                    attempts++;
-                  }
-                  
-                  if(mounted && window._fbReady && window._db) {
-                    try {
-                      const snap = await window._db.collection('nodo').doc('alerts').get();
-                      if(mounted) {
-                        if(snap.exists) setAlerts(snap.data().v || []);
-                        setLoadingAlerts(false);
-                      }
-                    } catch(e) {
-                      console.error("Error loading alerts:", e);
-                      if(mounted) setLoadingAlerts(false);
-                    }
-                  } else if(mounted) {
-                    setLoadingAlerts(false);
-                  }
-                };
+            // Global Alerts - Reutilizamos globalAlerts que ya se carga en el nivel superior
+            React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:12}},
+              globalAlerts.filter(a => a.active).length === 0 ? 
+              React.createElement('div',{className:'post-card',style:{background:'linear-gradient(135deg,rgba(124,58,237,.08),rgba(249,115,22,.08))',border:'1px solid rgba(124,58,237,.2)'}},
+                React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:12}},
+                  React.createElement('div',{style:{fontSize:24}},'🔔'),
+                  React.createElement('div',null,
+                    React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},'Anuncios Globales'),
+                    React.createElement('div',{style:{fontSize:12,color:'var(--txts)'}},'Noticias y actualizaciones de NODO ART')
+                  )
+                ),
+                React.createElement('div',{style:{fontSize:14,color:'var(--txt)',lineHeight:1.5}},'No hay anuncios importantes en este momento.')
+              ) : 
+              globalAlerts.filter(a => a.active).map(al => {
+                let bg, border, icon;
+                if(al.type === 'success') { bg = 'rgba(34,197,94,.08)'; border = 'rgba(34,197,94,.2)'; icon = '✅'; }
+                else if(al.type === 'warning') { bg = 'rgba(249,115,22,.08)'; border = 'rgba(249,115,22,.2)'; icon = '⚠️'; }
+                else if(al.type === 'error') { bg = 'rgba(239,68,68,.08)'; border = 'rgba(239,68,68,.2)'; icon = '🚨'; }
+                else { bg = 'rgba(59,130,246,.08)'; border = 'rgba(59,130,246,.2)'; icon = 'ℹ️'; }
                 
-                loadAlerts();
-                return () => { mounted = false; };
-              }, []);
-              
-              if(loadingAlerts) return React.createElement('div',{style:{padding:20,textAlign:'center',color:'var(--txtm)'}},'Cargando anuncios...');
-              
-              const activeAlerts = alerts.filter(a => a.active);
-              
-              return React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:12}},
-                activeAlerts.length === 0 ? 
-                React.createElement('div',{className:'post-card',style:{background:'linear-gradient(135deg,rgba(124,58,237,.08),rgba(249,115,22,.08))',border:'1px solid rgba(124,58,237,.2)'}},
-                  React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:12}},
-                    React.createElement('div',{style:{fontSize:24}},'🔔'),
-                    React.createElement('div',null,
-                      React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},'Anuncios Globales'),
-                      React.createElement('div',{style:{fontSize:12,color:'var(--txts)'}},'Noticias y actualizaciones de NODO ART')
-                    )
-                  ),
-                  React.createElement('div',{style:{fontSize:14,color:'var(--txt)',lineHeight:1.5}},'No hay anuncios importantes en este momento.')
-                ) : 
-                activeAlerts.map(al => {
-                  let bg, border, icon;
-                  if(al.type === 'success') { bg = 'rgba(34,197,94,.08)'; border = 'rgba(34,197,94,.2)'; icon = '✅'; }
-                  else if(al.type === 'warning') { bg = 'rgba(249,115,22,.08)'; border = 'rgba(249,115,22,.2)'; icon = '⚠️'; }
-                  else if(al.type === 'error') { bg = 'rgba(239,68,68,.08)'; border = 'rgba(239,68,68,.2)'; icon = '🚨'; }
-                  else { bg = 'rgba(59,130,246,.08)'; border = 'rgba(59,130,246,.2)'; icon = 'ℹ️'; }
-                  
-                  return React.createElement('div',{key:al.id,className:'post-card',style:{background:bg,border:'1px solid '+border}},
-                    React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}},
-                      React.createElement('div',{style:{fontSize:24}},icon),
-                      React.createElement('div',{style:{flex:1}},
-                        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
-                          React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},al.title),
-                          React.createElement('div',{style:{fontSize:11,color:'var(--txtm)'}},al.date)
-                        ),
-                        React.createElement('div',{style:{fontSize:14,color:'var(--txt)',lineHeight:1.5,marginTop:6,whiteSpace:'pre-wrap'}},al.msg),
-                        al.link && React.createElement('a',{href:al.link,target:'_blank',rel:'noopener noreferrer',style:{display:'inline-block',marginTop:8,color:'var(--amb)',fontWeight:600,fontSize:13,textDecoration:'none'}},'Ver más →'),
-                        
-                        // Render images if any
-                        al.images && al.images.length > 0 && React.createElement('div',{style:{display:'grid',gridTemplateColumns:al.images.length>1?'1fr 1fr':'1fr',gap:8,marginTop:12}},
-                          al.images.map((img, i) => React.createElement('div',{key:i,style:{borderRadius:8,overflow:'hidden',paddingBottom:'60%',position:'relative',background:'#000'}},
-                            React.createElement('img',{src:img,style:{position:'absolute',top:0,left:0,width:'100%',height:'100%',objectFit:'cover'},loading:'lazy'})
-                          ))
-                        )
+                return React.createElement('div',{key:al.id,className:'post-card',style:{background:bg,border:'1px solid '+border}},
+                  React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}},
+                    React.createElement('div',{style:{fontSize:24}},icon),
+                    React.createElement('div',{style:{flex:1}},
+                      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
+                        React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},al.title),
+                        React.createElement('div',{style:{fontSize:11,color:'var(--txtm)'}},al.date)
+                      ),
+                      React.createElement('div',{style:{fontSize:14,color:'var(--txt)',lineHeight:1.5,marginTop:6,whiteSpace:'pre-wrap'}},al.msg),
+                      al.link && React.createElement('a',{href:al.link,target:'_blank',rel:'noopener noreferrer',style:{display:'inline-block',marginTop:8,color:'var(--amb)',fontWeight:600,fontSize:13,textDecoration:'none'}},'Ver más →'),
+                      
+                      // Render images if any
+                      al.images && al.images.length > 0 && React.createElement('div',{style:{display:'grid',gridTemplateColumns:al.images.length>1?'1fr 1fr':'1fr',gap:8,marginTop:12}},
+                        al.images.map((img, i) => React.createElement('div',{key:i,style:{borderRadius:8,overflow:'hidden',paddingBottom:'60%',position:'relative',background:'#000'}},
+                          React.createElement('img',{src:img,style:{position:'absolute',top:0,left:0,width:'100%',height:'100%',objectFit:'cover'},loading:'lazy'})
+                        ))
                       )
                     )
-                  );
-                })
-              );
-            })(),
+                  )
+                );
+              })
+            ),
             React.createElement('h3',{style:{fontFamily:'museo-sans,sans-serif',fontSize:18,color:'var(--txt)',marginTop:12,marginBottom:8}},'Eventos y Cursos de la Comunidad'),
             React.createElement('div',{className:'empty-state'},React.createElement('div',{style:{fontSize:40,marginBottom:12}},'📅'),React.createElement('h3',null,'Sin eventos próximos'),React.createElement('p',null,'Cuando los creadores publiquen eventos o talleres aparecerán aquí.'))
           ),
@@ -2500,7 +2470,31 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
     setNewVideo('');
   };
   const removePortItem=i=>{const np=[...(p.portfolio||[])];np.splice(i,1);onUpdateProfile({...p,portfolio:np});};
-  const addConv=async()=>{if(!convTitle.trim())return;const newConv={title:convTitle.trim(),desc:convDesc.trim(),img:convImg,date:fmtDate(),id:'c'+Date.now()};onUpdateProfile({...p,convocatorias:[...(p.convocatorias||[]),newConv]});setConvTitle('');setConvDesc('');setConvImg(null);if(addNotifForAll)await addNotifForAll({text:p.name+' publicó nueva convocatoria: '+newConv.title,type:'convocatoria',cat:p.cat});};
+  const addConv=async()=>{
+    if(!convTitle.trim())return;
+    const newConv={title:convTitle.trim(),desc:convDesc.trim(),img:convImg,date:fmtDate(),id:'c'+Date.now()};
+    onUpdateProfile({...p,convocatorias:[...(p.convocatorias||[]),newConv]});
+    
+    try {
+      if(window._db) {
+        await window._db.collection('announcements').doc(newConv.id).set({
+          id: newConv.id,
+          category: 'convocatoria',
+          title: newConv.title,
+          msg: newConv.desc,
+          images: newConv.img ? [newConv.img] : [],
+          date: new Date().toLocaleDateString('es-MX'),
+          active: true,
+          authorId: p.userId,
+          authorName: p.name,
+          createdAt: new Date().toISOString()
+        });
+      }
+    } catch(e) { console.error('Error guardando en announcements globales', e); }
+    
+    setConvTitle('');setConvDesc('');setConvImg(null);
+    if(addNotifForAll)await addNotifForAll({text:p.name+' publicó nueva convocatoria: '+newConv.title,type:'convocatoria',cat:p.cat});
+  };
   const removeConv=id=>onUpdateProfile({...p,convocatorias:(p.convocatorias||[]).filter(c=>c.id!==id)});
   return React.createElement('div',{className:'profile-view fadein', style:{background: profileBg}},
     showEdit&&React.createElement('div',{className:'modal-overlay',onClick:e=>{if(e.target===e.currentTarget)setShowEdit(false);}},
@@ -2516,6 +2510,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
           ),
           React.createElement('div',null,React.createElement('label',{className:'field-label'},'Bio'),React.createElement('textarea',{className:'field-textarea',rows:4,defaultValue:p.bio,onBlur:e=>onUpdateProfile({...p,bio:e.target.value})})),
           React.createElement('div',null,React.createElement('label',{className:'field-label'},'Categorías artísticas'),React.createElement(ArtCatSelector,{selected:p.artTags||[],onChange:v=>onUpdateProfile({...p,artTags:v})})),
+          React.createElement('div',null,React.createElement('label',{className:'field-label'},'Código postal'),React.createElement('div',{className:'field-wrap'},React.createElement('span',{className:'field-ico'},React.createElement(Ic,{n:'pin',size:14,color:'#9b8e7e'})),React.createElement('input',{className:'field-input pl',defaultValue:p.cp||'',onBlur:e=>onUpdateProfile({...p,cp:e.target.value.replace(/\\D/g,'').slice(0,5)}),placeholder:'98000',maxLength:5}))),
           ...[{k:'web',l:'Sitio Web',ph:'tusitio.com',n:'globe'},{k:'email',l:'Correo',ph:'correo@dominio.com',n:'mail'},{k:'phone',l:'Teléfono',ph:'+52 492 000 0000',n:'phone'},{k:'ig',l:'Instagram',ph:'@tuusuario',n:'instagram'}].map(field=>React.createElement('div',{key:field.k},React.createElement('label',{className:'field-label'},field.l),React.createElement('div',{className:'field-wrap'},React.createElement('span',{className:'field-ico'},React.createElement(Ic,{n:field.n,size:14,color:'#9b8e7e'})),React.createElement('input',{className:'field-input pl',defaultValue:p[field.k]||'',onBlur:e=>onUpdateProfile({...p,[field.k]:e.target.value}),placeholder:field.ph}))))
         ),
         React.createElement('button',{className:'btn-primary',onClick:()=>setShowEdit(false)},'Guardar cambios')
@@ -2659,7 +2654,7 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
                 React.createElement('div',null,React.createElement('label',{className:'field-label'},'Enlace (Boletos o Info)'),React.createElement('input',{id:'new-ev-link',className:'field-input',placeholder:'https://...'})),
                 React.createElement('div',null,React.createElement('label',{className:'field-label'},'Descripción'),React.createElement('textarea',{id:'new-ev-desc',className:'field-textarea',rows:3,placeholder:'Detalles del evento...'}))
               ),
-              React.createElement('button',{onClick:()=>{
+              React.createElement('button',{onClick:async ()=>{
                 const title=document.getElementById('new-ev-title').value.trim();
                 if(!title)return;
                 const newEv = {
@@ -2673,6 +2668,24 @@ const ProfilePage=({p,go,profiles,currentUser,onUpdateProfile,onAuthClick,addNot
                   img:null // Simplificado por ahora
                 };
                 onUpdateProfile({...p,eventos:[...(p.eventos||[]),newEv]});
+                
+                try {
+                  if(window._db) {
+                    await window._db.collection('announcements').doc(newEv.id).set({
+                      id: newEv.id,
+                      category: newEv.type === 'curso' ? 'curso' : 'evento',
+                      title: newEv.title,
+                      msg: `${newEv.desc}\n\n📅 Fecha: ${newEv.date}\n💰 Costo: ${newEv.price}`,
+                      link: newEv.link,
+                      images: [],
+                      date: new Date().toLocaleDateString('es-MX'),
+                      active: true,
+                      authorId: p.userId,
+                      authorName: p.name,
+                      createdAt: new Date().toISOString()
+                    });
+                  }
+                } catch(e) { console.error('Error guardando en announcements globales', e); }
                 ['new-ev-title','new-ev-date','new-ev-price','new-ev-link','new-ev-desc'].forEach(id=>document.getElementById(id).value='');
               },className:'btn-primary',style:{marginTop:12}},'Publicar')
             )
@@ -3216,19 +3229,25 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
       ══════════════════════════════ */
       adminTab==='alertas'&&React.createElement('div',null,
         React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:20}},
-          React.createElement('div',{style:{width:48,height:48,borderRadius:12,background:'linear-gradient(135deg,#c4611e,#8b2e18)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:24}},'🔔'),
+          React.createElement('div',{style:{width:48,height:48,borderRadius:12,background:'linear-gradient(135deg,#c4611e,#8b2e18)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:24}},'📢'),
           React.createElement('div',null,
-            React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:20,fontWeight:700,color:'var(--txt)'}},'Alertas Globales y Popups'),
-            React.createElement('div',{style:{fontSize:13,color:'var(--txts)',marginTop:2}},'Publica anuncios importantes, convocatorias o noticias que todos los usuarios verán.')
+            React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:20,fontWeight:700,color:'var(--txt)'}},'Anuncios, Eventos y Alertas'),
+            React.createElement('div',{style:{fontSize:13,color:'var(--txts)',marginTop:2}},'Publica contenido que aparecerá en el feed global y en el popup de alertas.')
           )
         ),
         React.createElement('div',{className:'content-card',style:{marginBottom:24}},
-          React.createElement('h3',null,'Crear nueva alerta'),
+          React.createElement('h3',null,'Crear nueva publicación'),
           React.createElement('div',{className:'field-group'},
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Título del anuncio *'),React.createElement('input',{id:'new-alert-title',className:'field-input',placeholder:'Ej: Nueva convocatoria PECDA 2026'})),
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Mensaje'),React.createElement('textarea',{id:'new-alert-msg',className:'field-textarea',rows:3,placeholder:'Detalles importantes...'})),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de publicación *'),React.createElement('select',{id:'new-post-category',className:'field-select'},
+              React.createElement('option',{value:'alerta'},'🔔 Alerta Global (Popup)'),
+              React.createElement('option',{value:'anuncio'},'📢 Anuncio General'),
+              React.createElement('option',{value:'evento'},'📅 Evento / Taller'),
+              React.createElement('option',{value:'convocatoria'},'🏆 Convocatoria')
+            )),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Título *'),React.createElement('input',{id:'new-alert-title',className:'field-input',placeholder:'Ej: Nueva convocatoria PECDA 2026'})),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Mensaje / Descripción'),React.createElement('textarea',{id:'new-alert-msg',className:'field-textarea',rows:3,placeholder:'Detalles importantes...'})),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Enlace (opcional)'),React.createElement('input',{id:'new-alert-link',className:'field-input',placeholder:'https://...'})),
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de alerta'),React.createElement('select',{id:'new-alert-type',className:'field-select'},React.createElement('option',{value:'info'},'ℹ️ Información (Azul)'),React.createElement('option',{value:'success'},'✅ Éxito (Verde)'),React.createElement('option',{value:'warning'},'⚠️ Importante (Naranja)'),React.createElement('option',{value:'error'},'🚨 Urgente (Rojo)'))),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Estilo visual (Solo para Alertas)'),React.createElement('select',{id:'new-alert-type',className:'field-select'},React.createElement('option',{value:'info'},'ℹ️ Información (Azul)'),React.createElement('option',{value:'success'},'✅ Éxito (Verde)'),React.createElement('option',{value:'warning'},'⚠️ Importante (Naranja)'),React.createElement('option',{value:'error'},'🚨 Urgente (Rojo)'))),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Imágenes (hasta 5)'),
               React.createElement('input',{id:'new-alert-images',type:'file',accept:'image/*',multiple:true,className:'field-input',onChange:e=>{
                 if(e.target.files.length>5){
@@ -3288,27 +3307,39 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
                 }
               }
               
-              const alert={
-                id:'al_'+Date.now(),
+              const category = document.getElementById('new-post-category').value;
+              const isAlert = category === 'alerta';
+              
+              const post = {
+                id: (isAlert ? 'al_' : 'post_') + Date.now(),
+                category: category,
                 title,
-                msg:document.getElementById('new-alert-msg').value.trim(),
-                link:document.getElementById('new-alert-link').value.trim(),
-                type:document.getElementById('new-alert-type').value,
+                msg: document.getElementById('new-alert-msg').value.trim(),
+                link: document.getElementById('new-alert-link').value.trim(),
+                type: isAlert ? document.getElementById('new-alert-type').value : 'info',
                 images: images,
-                date:new Date().toLocaleDateString('es-MX'),
-                active:true
+                date: new Date().toLocaleDateString('es-MX'),
+                active: true,
+                authorId: currentUser.id,
+                authorName: currentUser.name || 'Admin',
+                createdAt: new Date().toISOString()
               };
               
               btn.innerText = 'Guardando en base de datos...';
-              const ref = window._db.collection('nodo').doc('alerts');
-              const snap = await ref.get();
-              let alerts = [];
-              if(snap.exists) alerts = snap.data().v || [];
-              alerts.unshift(alert);
               
-              await ref.set({v: alerts, ts: Date.now()});
+              if(isAlert) {
+                const ref = window._db.collection('nodo').doc('alerts');
+                const snap = await ref.get();
+                let alerts = [];
+                if(snap.exists) alerts = snap.data().v || [];
+                alerts.unshift(post);
+                await ref.set({v: alerts, ts: Date.now()});
+              } else {
+                // Guardar en la colección announcements (nueva estructura ilimitada)
+                await window._db.collection('announcements').doc(post.id).set(post);
+              }
               
-              window.alert('Alerta publicada con éxito');
+              window.alert('Publicación creada con éxito');
               ['new-alert-title','new-alert-msg','new-alert-link','new-alert-images'].forEach(id=>document.getElementById(id).value='');
               
             } catch(e) { 
@@ -3959,14 +3990,16 @@ function App(){
     /* Keep users/{uid} in sync with every profile edit */
     if(_fbReady&&_db&&u.userId&&u.userId!=='admin'){
       try{
-        await _db.collection('users').doc(u.userId).set({
-          name:u.name||'',email:u.email||'',phone:u.phone||'',
-          cat:u.cat||'artista',cats:u.cats||[u.cat||'artista'],
-          ig:u.ig||'',web:u.web||'',muni:u.muni||'zac',cp:u.cp||'',
-          bio:u.bio||'',sobre:u.sobre||'',tags:u.tags||[],
-          photo:u.photo||null,musicUrl:u.musicUrl||'',
-          updatedAt:fmtDate(),
-        },{merge:true});
+        // Guardar TODOS los campos en el documento del usuario para que no se pierdan
+        const userDataToSave = {
+          ...u,
+          updatedAt: fmtDate(),
+          timestamp: Date.now()
+        };
+        // Eliminar referencias circulares o datos que no deben ir a Firestore
+        delete userDataToSave.prof;
+        
+        await _db.collection('users').doc(u.userId).set(userDataToSave, {merge:true});
       }catch(e){console.warn('users doc sync error:',e);}
     }
   };
