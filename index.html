@@ -2100,16 +2100,75 @@ const HomePage=({profiles,posts,go,setProf,currentUser,onAuthClick})=>{
               })
             ),
           homeTab==='anuncios'&&React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:16}},
-            React.createElement('div',{className:'post-card',style:{background:'linear-gradient(135deg,rgba(124,58,237,.08),rgba(249,115,22,.08))',border:'1px solid rgba(124,58,237,.2)'}},
-              React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:12}},
-                React.createElement('div',{style:{fontSize:24}},'🔔'),
-                React.createElement('div',null,
-                  React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},'Anuncios Globales'),
-                  React.createElement('div',{style:{fontSize:12,color:'var(--txts)'}},'Noticias y actualizaciones de NODO ART')
-                )
-              ),
-              React.createElement('div',{style:{fontSize:14,color:'var(--txt)',lineHeight:1.5}},'Próximamente: Aquí aparecerán los anuncios importantes publicados por los administradores.')
-            ),
+            // Global Alerts
+            (()=>{
+              const [alerts, setAlerts] = React.useState([]);
+              const [loadingAlerts, setLoadingAlerts] = React.useState(true);
+              
+              React.useEffect(() => {
+                let mounted = true;
+                if(window._fbReady && window._db) {
+                  window._db.collection('nodo').doc('alerts').get().then(snap => {
+                    if(mounted) {
+                      if(snap.exists) setAlerts(snap.data().v || []);
+                      setLoadingAlerts(false);
+                    }
+                  }).catch(e => {
+                    console.error("Error loading alerts:", e);
+                    if(mounted) setLoadingAlerts(false);
+                  });
+                } else {
+                  setLoadingAlerts(false);
+                }
+                return () => { mounted = false; };
+              }, []);
+              
+              if(loadingAlerts) return React.createElement('div',{style:{padding:20,textAlign:'center',color:'var(--txtm)'}},'Cargando anuncios...');
+              
+              const activeAlerts = alerts.filter(a => a.active);
+              
+              return React.createElement('div',{style:{display:'flex',flexDirection:'column',gap:12}},
+                activeAlerts.length === 0 ? 
+                React.createElement('div',{className:'post-card',style:{background:'linear-gradient(135deg,rgba(124,58,237,.08),rgba(249,115,22,.08))',border:'1px solid rgba(124,58,237,.2)'}},
+                  React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:12}},
+                    React.createElement('div',{style:{fontSize:24}},'🔔'),
+                    React.createElement('div',null,
+                      React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},'Anuncios Globales'),
+                      React.createElement('div',{style:{fontSize:12,color:'var(--txts)'}},'Noticias y actualizaciones de NODO ART')
+                    )
+                  ),
+                  React.createElement('div',{style:{fontSize:14,color:'var(--txt)',lineHeight:1.5}},'No hay anuncios importantes en este momento.')
+                ) : 
+                activeAlerts.map(al => {
+                  let bg, border, icon;
+                  if(al.type === 'success') { bg = 'rgba(34,197,94,.08)'; border = 'rgba(34,197,94,.2)'; icon = '✅'; }
+                  else if(al.type === 'warning') { bg = 'rgba(249,115,22,.08)'; border = 'rgba(249,115,22,.2)'; icon = '⚠️'; }
+                  else if(al.type === 'error') { bg = 'rgba(239,68,68,.08)'; border = 'rgba(239,68,68,.2)'; icon = '🚨'; }
+                  else { bg = 'rgba(59,130,246,.08)'; border = 'rgba(59,130,246,.2)'; icon = 'ℹ️'; }
+                  
+                  return React.createElement('div',{key:al.id,className:'post-card',style:{background:bg,border:'1px solid '+border}},
+                    React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:12,marginBottom:12}},
+                      React.createElement('div',{style:{fontSize:24}},icon),
+                      React.createElement('div',{style:{flex:1}},
+                        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
+                          React.createElement('div',{style:{fontFamily:'museo-sans,sans-serif',fontSize:16,fontWeight:700,color:'var(--txt)'}},al.title),
+                          React.createElement('div',{style:{fontSize:11,color:'var(--txtm)'}},al.date)
+                        ),
+                        React.createElement('div',{style:{fontSize:14,color:'var(--txt)',lineHeight:1.5,marginTop:6,whiteSpace:'pre-wrap'}},al.msg),
+                        al.link && React.createElement('a',{href:al.link,target:'_blank',rel:'noopener noreferrer',style:{display:'inline-block',marginTop:8,color:'var(--amb)',fontWeight:600,fontSize:13,textDecoration:'none'}},'Ver más →'),
+                        
+                        // Render images if any
+                        al.images && al.images.length > 0 && React.createElement('div',{style:{display:'grid',gridTemplateColumns:al.images.length>1?'1fr 1fr':'1fr',gap:8,marginTop:12}},
+                          al.images.map((img, i) => React.createElement('div',{key:i,style:{borderRadius:8,overflow:'hidden',paddingBottom:'60%',position:'relative',background:'#000'}},
+                            React.createElement('img',{src:img,style:{position:'absolute',top:0,left:0,width:'100%',height:'100%',objectFit:'cover'},loading:'lazy'})
+                          ))
+                        )
+                      )
+                    )
+                  );
+                })
+              );
+            })(),
             React.createElement('h3',{style:{fontFamily:'museo-sans,sans-serif',fontSize:18,color:'var(--txt)',marginTop:12,marginBottom:8}},'Eventos y Cursos de la Comunidad'),
             React.createElement('div',{className:'empty-state'},React.createElement('div',{style:{fontSize:40,marginBottom:12}},'📅'),React.createElement('h3',null,'Sin eventos próximos'),React.createElement('p',null,'Cuando los creadores publiquen eventos o talleres aparecerán aquí.'))
           ),
@@ -3004,34 +3063,84 @@ const AdminPage=({profiles,users,currentUser,onAuthClick,setProf,go,onVerify,onD
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Título del anuncio *'),React.createElement('input',{id:'new-alert-title',className:'field-input',placeholder:'Ej: Nueva convocatoria PECDA 2026'})),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Mensaje'),React.createElement('textarea',{id:'new-alert-msg',className:'field-textarea',rows:3,placeholder:'Detalles importantes...'})),
             React.createElement('div',null,React.createElement('label',{className:'field-label'},'Enlace (opcional)'),React.createElement('input',{id:'new-alert-link',className:'field-input',placeholder:'https://...'})),
-            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de alerta'),React.createElement('select',{id:'new-alert-type',className:'field-select'},React.createElement('option',{value:'info'},'ℹ️ Información (Azul)'),React.createElement('option',{value:'success'},'✅ Éxito (Verde)'),React.createElement('option',{value:'warning'},'⚠️ Importante (Naranja)'),React.createElement('option',{value:'error'},'🚨 Urgente (Rojo)')))
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Tipo de alerta'),React.createElement('select',{id:'new-alert-type',className:'field-select'},React.createElement('option',{value:'info'},'ℹ️ Información (Azul)'),React.createElement('option',{value:'success'},'✅ Éxito (Verde)'),React.createElement('option',{value:'warning'},'⚠️ Importante (Naranja)'),React.createElement('option',{value:'error'},'🚨 Urgente (Rojo)'))),
+            React.createElement('div',null,React.createElement('label',{className:'field-label'},'Imágenes (hasta 5)'),
+              React.createElement('input',{id:'new-alert-images',type:'file',accept:'image/*',multiple:true,className:'field-input',onChange:e=>{
+                if(e.target.files.length>5){
+                  window.alert('Máximo 5 imágenes permitidas');
+                  e.target.value='';
+                }
+              }})
+            )
           ),
-          React.createElement('button',{onClick:async ()=>{
+          React.createElement('button',{id:'btn-publish-alert',onClick:async ()=>{
             const title=document.getElementById('new-alert-title').value.trim();
             if(!title)return;
-            const alert={
-              id:'al_'+Date.now(),
-              title,
-              msg:document.getElementById('new-alert-msg').value.trim(),
-              link:document.getElementById('new-alert-link').value.trim(),
-              type:document.getElementById('new-alert-type').value,
-              date:new Date().toLocaleDateString('es-MX'),
-              active:true
-            };
+            
+            const btn = document.getElementById('btn-publish-alert');
+            const origText = btn.innerText;
+            btn.innerText = 'Publicando...';
+            btn.disabled = true;
+            
             try {
-              if(window._fbReady&&window._db) {
-                const ref = window._db.collection('nodo').doc('alerts');
-                const snap = await ref.get();
-                let alerts = [];
-                if(snap.exists) alerts = snap.data().v || [];
-                alerts.unshift(alert);
-                await ref.set({v: alerts, ts: Date.now()});
-                window.alert('Alerta publicada con éxito');
-                ['new-alert-title','new-alert-msg','new-alert-link'].forEach(id=>document.getElementById(id).value='');
-              } else {
-                window.alert('Error de conexión a Firebase');
+              if(!window._fbReady || !window._db) {
+                window.alert('Error: Firebase no está listo. Recarga la página e intenta de nuevo.');
+                btn.innerText = origText;
+                btn.disabled = false;
+                return;
               }
-            } catch(e) { console.error(e); window.alert('Error al publicar alerta'); }
+              
+              // Process images if any
+              const fileInput = document.getElementById('new-alert-images');
+              const files = fileInput.files;
+              let images = [];
+              
+              if(files.length > 0) {
+                btn.innerText = 'Subiendo imágenes...';
+                for(let i=0; i<files.length; i++) {
+                  const file = files[i];
+                  const reader = new FileReader();
+                  const base64 = await new Promise((resolve) => {
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                  });
+                  // Use uploadPhoto directly with currentUser.id to store in user's folder
+                  // Note: Make sure the user is an admin
+                  const url = await uploadPhoto(base64, 'alerts', currentUser.id);
+                  if(url) images.push(url);
+                }
+              }
+              
+              const alert={
+                id:'al_'+Date.now(),
+                title,
+                msg:document.getElementById('new-alert-msg').value.trim(),
+                link:document.getElementById('new-alert-link').value.trim(),
+                type:document.getElementById('new-alert-type').value,
+                images: images,
+                date:new Date().toLocaleDateString('es-MX'),
+                active:true
+              };
+              
+              btn.innerText = 'Guardando en base de datos...';
+              const ref = window._db.collection('nodo').doc('alerts');
+              const snap = await ref.get();
+              let alerts = [];
+              if(snap.exists) alerts = snap.data().v || [];
+              alerts.unshift(alert);
+              
+              await ref.set({v: alerts, ts: Date.now()});
+              
+              window.alert('Alerta publicada con éxito');
+              ['new-alert-title','new-alert-msg','new-alert-link','new-alert-images'].forEach(id=>document.getElementById(id).value='');
+              
+            } catch(e) { 
+              console.error('Error al publicar alerta:', e); 
+              window.alert('Error al publicar alerta: ' + (e.message || 'Verifica permisos de Firebase')); 
+            } finally {
+              btn.innerText = origText;
+              btn.disabled = false;
+            }
           },className:'btn-primary',style:{marginTop:12}},'Publicar Alerta Global')
         ),
         React.createElement('div',{className:'content-card'},
